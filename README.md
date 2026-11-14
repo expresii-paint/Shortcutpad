@@ -11,14 +11,14 @@ probe/                   verification harness (clicks real buttons, captures a
 tools/                   fetch_nuget.py (offline feed), build-macos.sh
 local-feed/              Avalonia packages for offline restore on this PC
 legacy-winforms-src/     the previous WinForms build (172 KB exe, Windows only)
-dist-win/                Windows build (framework-dependent)
+dist-avalonia/           Windows build (framework-dependent)
 dist-linux/              Linux build (self-contained, X11)
 ```
 
 ## Run (Windows)
 
 ```
-dist-win\ShortcutPad.exe
+dist-avalonia\ShortcutPad.exe
 ```
 
 Needs the .NET 9 Desktop Runtime (already installed on this machine).
