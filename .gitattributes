@@ -1,0 +1,6 @@
+# Cross-platform line endings: this project builds and runs on Windows and
+# macOS, and tools/build-macos.sh must keep LF to be executable there.
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.png binary
