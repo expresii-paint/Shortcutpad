@@ -16,6 +16,26 @@ public sealed class PadConfig
     /// <summary>Pin the pad to a desktop edge: "none", "left" or "right".</summary>
     public string Dock { get; set; } = "none";
 
+    /// <summary>Let the user resize the pad. Ignored while docked.</summary>
+    public bool Resizable { get; set; } = true;
+
+    /// <summary>
+    /// Derive the column/row counts from the window size so buttons keep a
+    /// sensible touch size. When false, <see cref="Columns"/> is used and
+    /// resizing just stretches the buttons.
+    /// </summary>
+    public bool AutoFlow { get; set; } = true;
+
+    /// <summary>Remembered window size in DIPs (autoFlow only).</summary>
+    public double Width { get; set; } = 526;
+
+    /// <summary>Remembered window size in DIPs (autoFlow only).</summary>
+    public double Height { get; set; } = 381;
+
+    /// <summary>Target button size in DIPs, used by auto flow.</summary>
+    public int ButtonWidth { get; set; } = 100;
+    public int ButtonHeight { get; set; } = 62;
+
     public List<PadButton> Buttons { get; set; } = new();
 }
 
@@ -75,6 +95,9 @@ public static class ConfigStore
         AlwaysOnTop = true,
         Opacity = 1.0,
         Dock = "none",
+        AutoFlow = true,
+        ButtonWidth = 100,
+        ButtonHeight = 62,
         Buttons = new List<PadButton>
         {
             new() { Label = "Copy",       Keys = "ctrl+c",              Color = "#2d6cdf" },

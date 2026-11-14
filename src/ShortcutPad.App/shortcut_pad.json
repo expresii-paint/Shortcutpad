@@ -5,6 +5,12 @@
   "dock": "none",
   "x": 60,
   "y": 60,
+  "resizable": true,
+  "autoFlow": true,
+  "buttonWidth": 100,
+  "buttonHeight": 62,
+  "width": 526,
+  "height": 381,
   "buttons": [
     { "label": "Copy",       "keys": "ctrl+c",              "color": "#2d6cdf" },
     { "label": "Paste",      "keys": "ctrl+v",              "color": "#2d6cdf" },

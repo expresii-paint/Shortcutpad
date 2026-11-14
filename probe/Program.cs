@@ -73,6 +73,9 @@ internal static class Program
         int delayMs = 0;
         var forceForeground = true;
         var clickPoint = (x: -1, y: -1);
+        var layoutOnly = false;
+        var shotOnly = false;
+        string? shotPath = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -85,10 +88,25 @@ internal static class Program
                 case "--delay": delayMs = int.Parse(args[++i]); break;
                 case "--noforce": forceForeground = false; break;
                 case "--click": clickPoint = (int.Parse(args[++i]), int.Parse(args[++i])); break;
+                case "--layout": layoutOnly = true; break;
+                case "--shot": shotPath = args[++i]; shotOnly = true; break;
             }
         }
 
+        if (shotOnly)
+        {
+            Capture(padTitle, shotPath);
+            return 0;
+        }
+
+        if (layoutOnly)
+        {
+            DumpLayout(padTitle);
+            return 0;
+        }
+
         ApplicationConfiguration.Initialize();
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 
         var form = new Form
         {
@@ -287,6 +305,69 @@ internal static class Program
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    /// <summary>Capture the pad window from a DPI-aware process (physical pixels).</summary>
+    private static void Capture(string padTitle, string path)
+    {
+        var hwnd = FindWindow(null, padTitle);
+        if (hwnd == IntPtr.Zero)
+        {
+            Console.WriteLine($"PAD NOT FOUND title='{padTitle}'");
+            return;
+        }
+        GetWindowRect(hwnd, out var r);
+        // GetWindowRect is DPI-virtualised for a non-aware process; scale up.
+        var scale = GetDpiForWindow(hwnd) / 96.0;
+        var w = (int)((r.Right - r.Left) * scale);
+        var h = (int)((r.Bottom - r.Top) * scale);
+        using var bmp = new Bitmap(w, h);
+        using var g = Graphics.FromImage(bmp);
+        g.CopyFromScreen((int)(r.Left * scale), (int)(r.Top * scale), 0, 0, new Size(w, h));
+        bmp.Save(path);
+        Console.WriteLine($"SHOT {path} {w}x{h} (dpi {GetDpiForWindow(hwnd)}, scale {scale:0.##})");
+    }
+
+    /// <summary>Dump every button in the pad with its on-screen rectangle (physical px).</summary>
+    private static void DumpLayout(string padTitle)
+    {
+        var root = System.Windows.Automation.AutomationElement.RootElement;
+        var pad = root.FindFirst(System.Windows.Automation.TreeScope.Children,
+            new System.Windows.Automation.PropertyCondition(
+                System.Windows.Automation.AutomationElement.NameProperty, padTitle));
+        if (pad is null)
+        {
+            Console.WriteLine($"PAD NOT FOUND title='{padTitle}'");
+            return;
+        }
+        var pr = pad.Current.BoundingRectangle;
+        Console.WriteLine($"PAD rect=({pr.Left:0},{pr.Top:0})-({pr.Right:0},{pr.Bottom:0}) size={pr.Width:0}x{pr.Height:0}");
+
+        var buttons = pad.FindAll(System.Windows.Automation.TreeScope.Descendants,
+            new System.Windows.Automation.PropertyCondition(
+                System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                System.Windows.Automation.ControlType.Button));
+        Console.WriteLine($"COUNT={buttons.Count}");
+
+        var seen = new List<(string name, double l, double t, double r, double b)>();
+        foreach (System.Windows.Automation.AutomationElement b in buttons)
+        {
+            var r = b.Current.BoundingRectangle;
+            seen.Add((b.Current.Name, r.Left, r.Top, r.Right, r.Bottom));
+        }
+        seen.Sort((a, b) =>
+        {
+            var dr = Math.Abs(a.t - b.t) < 2 ? 0 : a.t.CompareTo(b.t);
+            return dr != 0 ? dr : a.l.CompareTo(b.l);
+        });
+        for (var i = 0; i < seen.Count; i++)
+        {
+            var s = seen[i];
+            Console.WriteLine($"BTN {i,2} name='{s.name}' rect=({s.l:0},{s.t:0})-({s.r:0},{s.b:0}) size={s.r - s.l:0}x{s.b - s.t:0}");
+        }
+    }
 
     private static void ClickByName(string padTitle, string buttonName)
     {

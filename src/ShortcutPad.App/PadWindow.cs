@@ -44,7 +44,9 @@ public sealed class PadWindow : Window
         Title = "Shortcut Pad";
         ShowInTaskbar = true;
         Topmost = true;
-        CanResize = false;
+        SizeToContent = SizeToContent.Manual;
+        MinWidth = 150;
+        MinHeight = 110;
         FontFamily = new FontFamily("Segoe UI");
 
         _cfg = ConfigStore.Load(_configPath);
@@ -54,6 +56,7 @@ public sealed class PadWindow : Window
         InitWatcher();
 
         PositionChanged += OnPositionChanged;
+        SizeChanged += OnSizeChanged;
 
     }
 
@@ -103,6 +106,8 @@ public sealed class PadWindow : Window
                 Margin = new Thickness(4),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
+                MinWidth = 0,
+                MinHeight = 0,
                 Cursor = new Cursor(StandardCursorType.Hand),
             };
             // A null Background makes a control transparent to hit-testing in
@@ -168,9 +173,96 @@ public sealed class PadWindow : Window
 
         Width = cols * ButtonWidth + 12;
         Height = rows * ButtonHeight + 34;
+        ApplyFlow();
     }
 
     private static double Luminance(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
+
+    // ------------------------------------------------------------ reflow
+
+    private bool _flowSuspended;
+
+    private bool IsDocked => _cfg.Dock is "left" or "right";
+
+    /// <summary>
+    /// Recompute the column/row counts from the current window size.
+    ///
+    /// Auto flow: the counts follow the window (more width -> more columns),
+    /// and the window's minimum size keeps the buttons at or above the target
+    /// size instead of squeezing them. Fixed: the configured column count is
+    /// used and the buttons simply stretch.
+    /// </summary>
+    private void ApplyFlow()
+    {
+        var n = _cfg.Buttons.Count;
+        if (n == 0 || _grid.Children.Count == 0) return;
+
+        const double margin = 12.0;    // the grid's margin, DIPs
+        const double status = 20.0;    // the status line, DIPs
+
+        // ClientSize is stale until the first layout, so derive from Width
+        // (which ApplyConfig sets explicitly) instead.
+        var clientW = Math.Max(1.0, Width - margin);
+
+        var cols = _cfg.AutoFlow
+            ? Math.Max(1, Math.Min(n, (int)(clientW / Math.Max(20, _cfg.ButtonWidth))))
+            : Math.Max(1, _cfg.Columns);
+        var rows = Math.Max(1, (int)Math.Ceiling(n / (double)cols));
+
+        _flowSuspended = true;
+        try
+        {
+            _grid.ColumnDefinitions.Clear();
+            for (var c = 0; c < cols; c++)
+                _grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            _grid.RowDefinitions.Clear();
+            for (var r = 0; r < rows; r++)
+                _grid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+
+            for (var i = 0; i < _grid.Children.Count && i < n; i++)
+            {
+                Grid.SetRow(_grid.Children[i], i / cols);
+                Grid.SetColumn(_grid.Children[i], i % cols);
+            }
+
+            if (!IsDocked)
+            {
+                // The column formula already keeps buttons at or above the
+                // target width, so only one column is a hard floor. Height is
+                // different: more rows means the window must grow, otherwise
+                // the buttons would be squeezed short.
+                MinWidth = _cfg.ButtonWidth + margin;
+                MinHeight = rows * _cfg.ButtonHeight + margin + status + ChromeHeight();
+            }
+            Status($"{cols} x {rows}");
+        }
+        finally { _flowSuspended = false; }
+    }
+
+    /// <summary>Title-bar height in DIPs, measured from the window itself.</summary>
+    private double ChromeHeight()
+    {
+        try
+        {
+            var scale = RenderScale();
+            var origin = Avalonia.VisualExtensions.PointToScreen(this, new Point(0, 0));
+            return (origin.Y - Position.Y) / scale;
+        }
+        catch { return 28.0; }
+    }
+
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (_flowSuspended) return;
+        ApplyFlow();
+
+        if (_cfg.AutoFlow && !IsDocked)
+        {
+            _cfg.Width = ClientSize.Width;
+            _cfg.Height = ClientSize.Height;
+            QueueSave();
+        }
+    }
 
     private ContextMenu BuildContextMenu()
     {
@@ -182,6 +274,21 @@ public sealed class PadWindow : Window
         menu.Items.Add(new Separator());
         foreach (var opacity in new[] { 1.0, 0.85, 0.7, 0.5 })
             menu.Items.Add(MakeItem($"Opacity {opacity * 100:0}%", () => SetOpacity(opacity)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(MakeCheckable("Auto flow", _cfg.AutoFlow, on =>
+        {
+            _cfg.AutoFlow = on;
+            ApplyFlow();
+            Status($"auto flow {(on ? "on" : "off")}");
+            QueueSave();
+        }));
+        menu.Items.Add(MakeCheckable("Resizable", _cfg.Resizable, on =>
+        {
+            _cfg.Resizable = on;
+            CanResize = on && !IsDocked;
+            Status($"resizable {(on ? "on" : "off")}");
+            QueueSave();
+        }));
         menu.Items.Add(new Separator());
         menu.Items.Add(MakeItem("Dock left", () => SetDock("left")));
         menu.Items.Add(MakeItem("Dock right", () => SetDock("right")));
@@ -198,6 +305,32 @@ public sealed class PadWindow : Window
         return item;
     }
 
+    private static string Mark(string header, bool on) => (on ? "✓ " : "   ") + header;
+
+    private static MenuItem MakeCheckable(string header, bool isChecked, Action<bool> setter)
+    {
+        var item = new MenuItem { Header = Mark(header, isChecked) };
+        item.Click += (_, _) =>
+        {
+            isChecked = !isChecked;
+            item.Header = Mark(header, isChecked);
+            setter(isChecked);
+        };
+        return item;
+    }
+
+    private static NativeMenuItem MakeTrayCheckable(string header, bool isChecked, Action<bool> setter)
+    {
+        var item = new NativeMenuItem { Header = Mark(header, isChecked) };
+        item.Click += (_, _) =>
+        {
+            isChecked = !isChecked;
+            item.Header = Mark(header, isChecked);
+            setter(isChecked);
+        };
+        return item;
+    }
+
     // ------------------------------------------------------------ config
 
     private void ApplyConfig()
@@ -210,9 +343,16 @@ public sealed class PadWindow : Window
         {
             ApplyDock(_cfg.Dock);
         }
-        else if (_cfg.X >= 0 && _cfg.Y >= 0 && _cfg.X < (Screens.Primary?.Bounds.Width ?? int.MaxValue))
+        else
         {
-            Position = new PixelPoint(_cfg.X, _cfg.Y);
+            if (_cfg.X >= 0 && _cfg.Y >= 0 && _cfg.X < (Screens.Primary?.Bounds.Width ?? int.MaxValue))
+                Position = new PixelPoint(_cfg.X, _cfg.Y);
+
+            // Restore the remembered size, then reflow it into a grid.
+            Width = Math.Max(MinWidth, _cfg.Width);
+            Height = Math.Max(MinHeight, _cfg.Height);
+            CanResize = _cfg.Resizable;
+            ApplyFlow();
         }
 
         _platform.SelfId = OperatingSystem.IsLinux() || OperatingSystem.IsWindows()
@@ -247,7 +387,10 @@ public sealed class PadWindow : Window
         if (side == "none")
         {
             _cfg.Dock = "none";
-            CanResize = false;
+            MinWidth = 150;
+            MinHeight = 110;
+            CanResize = _cfg.Resizable;
+            ApplyFlow();
             Status("undocked");
         }
         else
@@ -364,6 +507,21 @@ public sealed class PadWindow : Window
         AddTrayItem(menu, "Reload config", Reload);
         AddTrayItem(menu, "Edit config", () =>
             Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true }));
+        menu.Items.Add(new NativeMenuItemSeparator());
+        menu.Items.Add(MakeTrayCheckable("Auto flow", _cfg.AutoFlow, on =>
+        {
+            _cfg.AutoFlow = on;
+            ApplyFlow();
+            Status($"auto flow {(on ? "on" : "off")}");
+            QueueSave();
+        }));
+        menu.Items.Add(MakeTrayCheckable("Resizable", _cfg.Resizable, on =>
+        {
+            _cfg.Resizable = on;
+            CanResize = on && !IsDocked;
+            Status($"resizable {(on ? "on" : "off")}");
+            QueueSave();
+        }));
         foreach (var opacity in new[] { 1.0, 0.85, 0.7, 0.5 })
             AddTrayItem(menu, $"Opacity {opacity * 100:0}%", () => SetOpacity(opacity));
         AddTrayItem(menu, "Dock left", () => SetDock("left"));

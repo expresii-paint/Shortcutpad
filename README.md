@@ -30,9 +30,15 @@ within a second.
 - **Always on top**, tray icon (double-click to hide/show), right-click menu.
 - **Sends keystrokes to the app you were in** — it tracks the foreground window
   and hands focus back before sending, so your workflow is not interrupted.
-- **Touch-sized buttons**: each is about 100 x 62 DIPs (well above the 44/48 pt
-  minimums), with the grid rows set to `Star` so a docked pad stretches its
-  buttons over the whole work-area height.
+- **Touch-sized buttons**: the target is 100 x 62 DIPs per button (well above
+  the 44/48 pt minimums), with grid rows set to `Star`.
+- **Resizable**: drag any edge or corner. The window remembers its size.
+- **Auto flow** (`"autoFlow": true`, also a menu/tray toggle): the column and
+  row counts follow the window, so the buttons keep the target size instead of
+  being squeezed. Measured on this machine: 900 px wide → 8 x 4, 420 px →
+  3 x 9, 1600 px → 15 x 2, with button widths always at or above the target.
+  With auto flow off, `"columns"` is fixed and resizing just stretches the
+  buttons.
 - **Icons for common actions** (Material Design Icons, Apache-2.0, embedded as
   vector paths — nothing binary ships): copy, paste, cut, undo, redo, save,
   select-all, find, enter, esc, tab, backspace, home, delete, task manager,
@@ -57,6 +63,12 @@ within a second.
   "alwaysOnTop": true,
   "opacity": 0.85,
   "dock": "left",
+  "resizable": true,
+  "autoFlow": true,
+  "buttonWidth": 100,
+  "buttonHeight": 62,
+  "width": 526,
+  "height": 381,
   "x": 60, "y": 60,
   "buttons": [
     { "label": "Copy",     "keys": "ctrl+c",              "color": "#2d6cdf" },
@@ -70,6 +82,22 @@ within a second.
 `color` is optional (white text is picked automatically for dark colors).
 Note: a button with no `color` gets a light-grey brush — an explicit background
 is required, otherwise Avalonia does not hit-test the button.
+
+### Layout
+
+| Field | Meaning |
+|---|---|
+| `resizable` | Window can be resized (forced off while docked). Default `true`. |
+| `autoFlow` | Column/row counts follow the window size. Default `true`. |
+| `buttonWidth` / `buttonHeight` | Target button size in DIPs used by auto flow. |
+| `width` / `height` | Remembered window size in DIPs (auto flow). |
+| `columns` | Fixed column count, used when `autoFlow` is `false`. |
+
+Auto flow derives the columns from the width (`floor(width / buttonWidth)`)
+and the rows from the button count, so a button is never narrower than the
+target. The window's minimum height then grows with the row count — narrowing
+the pad makes it taller rather than squeezing the buttons. One column is always
+allowed as the minimum width.
 
 ### Icons
 
@@ -182,6 +210,8 @@ cd probe && dotnet build -c Release
 ./bin/Release/net9.0-windows/probe.exe --pad "Shortcut Pad" --name Hello
 ./bin/Release/net9.0-windows/probe.exe --pad "Shortcut Pad" --name Copy
 ./bin/Release/net9.0-windows/probe.exe --pad "Shortcut Pad" --name Calc
+./bin/Release/net9.0-windows/probe.exe --layout      # grid + every button rect
+./bin/Release/net9.0-windows/probe.exe --shot pad.png
 ```
 
 Verified on this machine (Windows): `Hello` types into the target, `Copy`
@@ -191,6 +221,23 @@ see-through, and `dock` snaps it flush to the screen edge at full work-area
 height. The button grid is 5 x 5 buttons of ~92 x 54 DIPs each; 24 of the 25
 default buttons draw their icon (checked visually and by sampling the rendered
 pixels), and the one action without an icon (`Hello`) renders at 20 pt.
+
+Resizing and auto flow were verified by driving the real window with
+`SetWindowPos` and reading the resulting grid back through UI Automation
+(`probe.exe --layout` dumps every button's on-screen rectangle):
+
+| Window (DIP) | Grid | Button width |
+|---|---|---|
+| 526 x 381 | 5 x 5 | 92 |
+| 900 x 620 | 8 x 4 | 101 |
+| 420 x 900 | 3 x 9 | 123 |
+| 1600 x 500 | 15 x 2 | 97 |
+
+Button width never drops below the 100 DIP target (the small deficit at 526 is
+the 4 DIP button margin); the height stretches with the window because the
+rows are `Star`. Narrowing the pad makes it taller (the row count grows)
+instead of squeezing the buttons. With `"autoFlow": false` the grid stays
+5 x 5 at 1200 x 700 and at 480 x 500, and the buttons stretch.
 
 Verified on Linux (WSL Ubuntu 24.04 under WSLg's X11 display): the self-contained
 build runs, the window appears, the config hot-reloads, `dock: right`/`left`
