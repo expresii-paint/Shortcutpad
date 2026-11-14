@@ -26,6 +26,12 @@ public sealed class PadButton
     public string? Text { get; set; }
     public string? Run { get; set; }
     public string? Color { get; set; }
+
+    /// <summary>
+    /// Optional icon name from <see cref="PadIcons"/>, e.g. "undo", "content-copy".
+    /// When omitted the icon is inferred from <see cref="Keys"/> / <see cref="Run"/>.
+    /// </summary>
+    public string? Icon { get; set; }
 }
 
 public static class ConfigStore

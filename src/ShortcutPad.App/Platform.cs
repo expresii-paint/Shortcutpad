@@ -7,7 +7,9 @@ public sealed class ForegroundTarget
 {
     public IntPtr Hwnd;          // Windows
     public string? BundleId;     // macOS
-    public bool IsValid => Hwnd != IntPtr.Zero || !string.IsNullOrEmpty(BundleId);
+    public ulong X11Window;      // Linux: the focused X11 window (XID)
+    public string? LinuxPid;     // Linux: _NET_WM_PID of that window
+    public bool IsValid => Hwnd != IntPtr.Zero || !string.IsNullOrEmpty(BundleId) || X11Window != 0;
 }
 
 public interface IPadPlatform
@@ -31,7 +33,8 @@ public static class PadPlatform
     public static IPadPlatform Create() =>
         OperatingSystem.IsWindows() ? new WindowsPlatform()
         : OperatingSystem.IsMacOS() ? new MacPlatform()
-        : throw new PlatformNotSupportedException("Shortcut Pad supports Windows and macOS.");
+        : OperatingSystem.IsLinux() ? new LinuxPlatform()
+        : throw new PlatformNotSupportedException("Shortcut Pad supports Windows, macOS and Linux (X11).");
 }
 
 // ---------------------------------------------------------------- Windows

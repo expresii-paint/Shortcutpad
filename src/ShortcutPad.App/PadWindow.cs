@@ -27,8 +27,11 @@ public sealed class PadWindow : Window
     private bool _suppressWatcher;
     private PixelPoint _lastPosition;
 
-    private const int ButtonWidth = 96;
-    private const int ButtonHeight = 44;
+    private const int ButtonWidth = 100;
+    private const int ButtonHeight = 62;    // DIPs: comfortably touch-sized
+    private const int IconSize = 30;
+    private const int LabelWithIcon = 13;
+    private const int LabelNoIcon = 20;     // glanceable when there is no icon
     private const int SnapDistance = 24;
 
     public PadWindow(string configPath)
@@ -87,17 +90,17 @@ public sealed class PadWindow : Window
         for (var c = 0; c < cols; c++)
             _grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
         var rows = Math.Max(1, (int)Math.Ceiling(_cfg.Buttons.Count / (double)cols));
+        // Star rows: the pad fills whatever height it is given, so a docked pad
+        // stretches its buttons over the whole work-area height.
         for (var r = 0; r < rows; r++)
-            _grid.RowDefinitions.Add(new RowDefinition(new GridLength(ButtonHeight, GridUnitType.Pixel)));
+            _grid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
 
         for (var i = 0; i < _cfg.Buttons.Count; i++)
         {
             var b = _cfg.Buttons[i];
             var btn = new Button
             {
-                Content = b.Label,
-                Margin = new Thickness(3),
-                FontSize = 13,
+                Margin = new Thickness(4),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
                 Cursor = new Cursor(StandardCursorType.Hand),
@@ -107,8 +110,55 @@ public sealed class PadWindow : Window
             btn.Background = string.IsNullOrWhiteSpace(b.Color)
                 ? new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0))
                 : (IBrush)new BrushConverter().ConvertFromString(b.Color);
-            if (btn.Background is ISolidColorBrush solid && Luminance(solid.Color) < 0.55f)
-                btn.Foreground = Brushes.White;
+            // Always set an explicit foreground too: the icon's Fill binds to it.
+            btn.Foreground = btn.Background is ISolidColorBrush solid && Luminance(solid.Color) < 0.55f
+                ? Brushes.White
+                : Brushes.Black;
+
+            var icon = PadIcons.ResolveFor(b);
+            if (icon is not null && PadIcons.TryGet(icon, out var pathData))
+            {
+                var iconPath = new Avalonia.Controls.Shapes.Path
+                {
+                    Data = Geometry.Parse(pathData),
+                    Width = IconSize,
+                    Height = IconSize,
+                    Stretch = Stretch.Uniform,
+                    Fill = btn.Foreground,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                };
+                var caption = new TextBlock
+                {
+                    Text = b.Label,
+                    FontSize = LabelWithIcon,
+                    TextAlignment = TextAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap,
+                };
+                var stack = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    Spacing = 2,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                stack.Children.Add(iconPath);
+                stack.Children.Add(caption);
+                btn.Content = stack;
+            }
+            else
+            {
+                // No icon available: make the label itself large and legible.
+                btn.Content = new TextBlock
+                {
+                    Text = b.Label,
+                    FontSize = LabelNoIcon,
+                    FontWeight = FontWeight.SemiBold,
+                    TextAlignment = TextAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+            }
+
             var index = i;
             btn.Click += (_, _) => Execute(_cfg.Buttons[index]);
             _grid.Children.Add(btn);
@@ -165,7 +215,7 @@ public sealed class PadWindow : Window
             Position = new PixelPoint(_cfg.X, _cfg.Y);
         }
 
-        _platform.SelfId = OperatingSystem.IsWindows()
+        _platform.SelfId = OperatingSystem.IsLinux() || OperatingSystem.IsWindows()
             ? TryGetWindowHandle().ToString()
             : (MacSelfBundleId() ?? string.Empty);
     }
@@ -459,5 +509,6 @@ public static class PadPlatformSender
     public static IKeystrokeSender Create() =>
         OperatingSystem.IsWindows() ? new WindowsKeystrokeSender()
         : OperatingSystem.IsMacOS() ? new MacKeystrokeSender()
+        : OperatingSystem.IsLinux() ? new LinuxKeystrokeSender()
         : throw new PlatformNotSupportedException();
 }
