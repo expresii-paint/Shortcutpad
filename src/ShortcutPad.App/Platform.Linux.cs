@@ -35,6 +35,14 @@ public sealed class LinuxPlatform : IPadPlatform
     [DllImport(X11)] private static extern int XFree(IntPtr p);
     [DllImport(X11)] private static extern int XSendEvent(IntPtr d, ulong w, bool propagate, long mask, ref XEvent ev);
 
+    [DllImport(X11)] private static extern bool XQueryPointer(
+        IntPtr d, ulong w,
+        out ulong root, out ulong child,
+        out int rootX, out int rootY,
+        out int winX, out int winY, out uint mask);
+
+    private const uint Button1Mask = 1u << 8;
+
     public string Name => "Linux";
     public string? SelfId { get; set; }
     public ForegroundTarget? LastOther { get; private set; }
@@ -104,6 +112,22 @@ public sealed class LinuxPlatform : IPadPlatform
                 SubstructureRedirectMask | SubstructureNotifyMask, ref ev);
             XFlush(Display);
             return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Pointer button state from the X server; see IPadPlatform.</summary>
+    public bool IsPointerDown()
+    {
+        try
+        {
+            if (Display == IntPtr.Zero) return false;
+            var ok = XQueryPointer(Display, XDefaultRootWindow(Display),
+                out _, out _, out _, out _, out _, out _, out var mask);
+            return ok && (mask & Button1Mask) != 0;
         }
         catch
         {

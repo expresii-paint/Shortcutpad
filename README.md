@@ -70,9 +70,11 @@ within a second; the Options window shows the path it is using.
   (20 pt semibold) glanceable label.
 - **Semi-transparent**: `"opacity": 0.1 … 1.0` in the config, or the menu
   (100 / 85 / 70 / 50 %).
-- **Docks to a screen edge**: `"dock": "left" | "right" | "none"`. While
-  dragging, releasing within 24 px of the left/right edge snaps it there and
-  pins it; the pad then spans the full work-area height.
+- **Docks to a screen edge**: `"dock": "left" | "right" | "none"`. While you are
+  dragging the pad, releasing within 24 px of the left/right edge snaps it there
+  and pins it; the pad then spans the full work-area height. The snap only
+  applies to a window being dragged — restoring a saved position on startup
+  never docks, so a window parked near an edge keeps its size and place.
 - Buttons are hot-reloadable: edit the JSON and the pad rebuilds live.
 - **GUI editor**: right-click the pad (or the tray icon) → **Edit buttons…**, or
   run `ShortcutPad --edit-buttons`. Add, delete, reorder and edit every field —

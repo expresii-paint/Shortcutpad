@@ -741,6 +741,10 @@ public sealed class PadWindow : Window
     private void SnapIfNeeded()
     {
         if (_cfg.Dock != "none") return;
+        // Only snap a window the user is actually dragging. Without this, the
+        // position restored at startup counts as a move and a saved position
+        // inside the snap band silently docks the pad on every launch.
+        if (!_platform.IsPointerDown()) return;
         var screen = Screens.ScreenFromPoint(_lastPosition) ?? Screens.Primary;
         if (screen is null) return;
         var wa = screen.WorkingArea;

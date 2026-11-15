@@ -26,6 +26,14 @@ public interface IPadPlatform
 
     /// <summary>Hand focus back to a previously sampled app.</summary>
     bool Restore(ForegroundTarget target);
+
+    /// <summary>
+    /// Whether a pointer button is currently held down. The edge-snap uses this
+    /// to tell a window the user is dragging apart from one the app moved
+    /// itself (restoring a saved position, resizing) - otherwise simply
+    /// restarting the pad inside the snap band silently docks it.
+    /// </summary>
+    bool IsPointerDown();
 }
 
 public static class PadPlatform
@@ -44,6 +52,9 @@ public sealed class WindowsPlatform : IPadPlatform
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int virtualKey);
+
+    private const int VK_LBUTTON = 0x01;
 
     public string Name => "Windows";
     public string? SelfId { get; set; }
@@ -63,6 +74,8 @@ public sealed class WindowsPlatform : IPadPlatform
         if (target.Hwnd == IntPtr.Zero || !IsWindow(target.Hwnd)) return false;
         return SetForegroundWindow(target.Hwnd);
     }
+
+    public bool IsPointerDown() => (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 }
 
 // ---------------------------------------------------------------- macOS
@@ -108,6 +121,12 @@ public sealed class MacPlatform : IPadPlatform
         objc_msgSend(app, sel_getUid("activateWithOptions:"), (IntPtr)ActivateOptions);
         return true;
     }
+
+    /// <summary>
+    /// <c>[NSEvent pressedMouseButtons]</c>: non-zero while a button is held.
+    /// </summary>
+    public bool IsPointerDown() =>
+        objc_msgSend(objc_getClass("NSEvent"), sel_getUid("pressedMouseButtons")) != IntPtr.Zero;
 
     private static string? ActiveBundleId()
     {
