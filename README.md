@@ -224,6 +224,15 @@ SDK, which would pop a cmd window; the project therefore pins
 `dotnet run` and an IDE start button all produce a GUI exe too. (macOS and
 Linux have no PE subsystem, so they are left alone.)
 
+**Icon:** `src/ShortcutPad.App/app.ico` is the single source of truth.
+`ApplicationIcon` in the project file embeds it in the exe (Explorer, taskbar,
+alt-tab), and the same file is an `EmbeddedResource` that `AppIcon` loads for
+the window title bars and the tray icon — so all three show the same art.
+`icon.png` is the 256px master. To change the mark, edit
+`tools/gen_icon.py` (it draws the tile, the 2x2 key grid and the return arrow)
+and run `python tools/gen_icon.py` from that directory, which rewrites both
+files.
+
 ## Build (macOS)
 
 On the Mac:

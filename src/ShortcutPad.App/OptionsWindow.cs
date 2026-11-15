@@ -43,6 +43,7 @@ public sealed class OptionsWindow : Window
         _actions = actions;
 
         Title = "Options";
+        Icon = AppIcon.TryLoad();
         Width = 430;
         Height = 660;
         MinWidth = 340;

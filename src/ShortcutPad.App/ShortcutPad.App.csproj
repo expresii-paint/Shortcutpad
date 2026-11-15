@@ -16,6 +16,9 @@
     <AssemblyName>ShortcutPad</AssemblyName>
     <RootNamespace>ShortcutPad</RootNamespace>
     <Version>2.0.0</Version>
+    <!-- Embeds the icon in the exe/apphost, so Explorer, the taskbar and the
+         alt-tab list show it instead of the generic .NET icon. -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
     <PublishTrimmed>false</PublishTrimmed>
@@ -33,6 +36,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- app.ico is the single source of truth: ApplicationIcon embeds it in
+         the exe, and the embedded copy feeds the window title bars and tray.
+         icon.png is the 256px master the generator works from. -->
+    <EmbeddedResource Include="app.ico" />
     <EmbeddedResource Include="icon.png" />
   </ItemGroup>
 

@@ -68,6 +68,7 @@ public sealed class ButtonEditorWindow : Window
         _onSave = onSave;
 
         Title = "Edit buttons";
+        Icon = AppIcon.TryLoad();
         Width = 860;
         Height = 560;
         MinWidth = 680;

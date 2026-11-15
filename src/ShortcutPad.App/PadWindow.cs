@@ -45,6 +45,7 @@ public sealed class PadWindow : Window
 
         BuildUi();
         Title = "Shortcut Pad";
+        Icon = AppIcon.TryLoad();
         ShowInTaskbar = true;
         Topmost = true;
         SizeToContent = SizeToContent.Manual;
@@ -646,9 +647,8 @@ public sealed class PadWindow : Window
     {
         try
         {
-            using var stream = GetType().Assembly.GetManifestResourceStream("ShortcutPad.App.icon.png");
-            if (stream is null) return;
-            var icon = new WindowIcon(stream);
+            var icon = AppIcon.TryLoad();
+            if (icon is null) return;
             _tray = new TrayIcon
             {
                 Icon = icon,
