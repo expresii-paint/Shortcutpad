@@ -32,10 +32,12 @@ within a second.
   and opens an **Options window** with large buttons (auto flow, resizable,
   show/hide, reload, edit config, edit buttons, opacity, docking, exit). This
   exists because right-click is awkward on a touch screen, and because Windows
-  11 keeps new tray icons in the hidden-icons overflow. Note that popup menus
-  (`ContextMenu`) do not render for this always-on-top, semi-transparent
-  window — `IsOpen` reports `true` while nothing appears — so the options are a
-  real window rather than a popup.
+  11 keeps new tray icons in the hidden-icons overflow.
+  A popup menu was tried first and does not work: opening the pad's
+  `ContextMenu` sets `IsOpen = true` but nothing appears on screen (checked
+  with `alwaysOnTop` both on and off), whereas the editor's ComboBox dropdown
+  renders normally. So the options are a real window rather than a popup, and
+  right-click on the pad currently shows nothing — use the ☰ Menu button.
 - **Sends keystrokes to the app you were in** — it tracks the foreground window
   and hands focus back before sending, so your workflow is not interrupted.
 - **Touch-sized buttons**: the target is 100 x 62 DIPs per button (well above
