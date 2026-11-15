@@ -37,7 +37,7 @@ public sealed class OptionsWindow : Window
     private readonly PadConfig _cfg;
     private readonly OptionsActions _actions;
 
-    public OptionsWindow(PadConfig cfg, OptionsActions actions)
+    public OptionsWindow(PadConfig cfg, string configPath, OptionsActions actions)
     {
         _cfg = cfg;
         _actions = actions;
@@ -82,6 +82,15 @@ public sealed class OptionsWindow : Window
 
         stack.Children.Add(Separator());
         stack.Children.Add(MakeButton("Exit", _actions.Exit));
+        stack.Children.Add(Caption("Settings are stored in:"));
+        stack.Children.Add(new TextBlock
+        {
+            Text = configPath,
+            FontSize = 11,
+            Foreground = Brushes.Gray,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 0, 0),
+        });
 
         Content = new ScrollViewer
         {

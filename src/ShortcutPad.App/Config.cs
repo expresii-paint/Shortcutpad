@@ -117,6 +117,54 @@ public static class ConfigStore
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    private static string? _resolved;
+
+    /// <summary>
+    /// The per-user config file: roaming app-data on Windows, ~/.config on
+    /// Linux, ~/Library/Application Support on macOS.
+    /// </summary>
+    public static string UserConfigPath()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            return Path.Combine(roaming, "ShortcutPad", "shortcut_pad.json");
+        }
+        if (OperatingSystem.IsMacOS())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return Path.Combine(home, "Library", "Application Support", "ShortcutPad", "shortcut_pad.json");
+        }
+        var xdg = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        var dir = !string.IsNullOrWhiteSpace(xdg)
+            ? xdg
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
+        return Path.Combine(dir, "ShortcutPad", "shortcut_pad.json");
+    }
+
+    /// <summary>
+    /// Where the live config is kept. Deliberately *not* next to the executable:
+    /// a rebuild or reinstall wipes the output folder, which used to throw away
+    /// every setting the user had made. Falls back to the executable directory
+    /// if the per-user location cannot be created.
+    /// </summary>
+    public static string ResolvePath()
+    {
+        if (_resolved is not null) return _resolved;
+        var user = UserConfigPath();
+        try
+        {
+            var dir = Path.GetDirectoryName(user);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            _resolved = user;
+        }
+        catch
+        {
+            _resolved = Path.Combine(AppContext.BaseDirectory, "shortcut_pad.json");
+        }
+        return _resolved;
+    }
+
     public static PadConfig Load(string path)
     {
         if (File.Exists(path))
@@ -131,6 +179,28 @@ public static class ConfigStore
                 // fall through: rewrite a known-good default
             }
         }
+
+        // First run, or an install that used to keep the config next to the
+        // executable: carry that file over so upgrading in place keeps the
+        // user's buttons and settings.
+        var legacy = Path.Combine(AppContext.BaseDirectory, "shortcut_pad.json");
+        if (!string.Equals(legacy, path, StringComparison.OrdinalIgnoreCase) && File.Exists(legacy))
+        {
+            try
+            {
+                var migrated = JsonSerializer.Deserialize<PadConfig>(File.ReadAllText(legacy), Options);
+                if (migrated is not null)
+                {
+                    Save(path, migrated);
+                    return migrated;
+                }
+            }
+            catch (JsonException)
+            {
+                // fall through to the built-in defaults
+            }
+        }
+
         var def = Default();
         Save(path, def);
         return def;
@@ -142,6 +212,8 @@ public static class ConfigStore
 
     public static void Save(string path, PadConfig cfg)
     {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
         var tmp = path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(cfg, Options));
         File.Move(tmp, path, overwrite: true);

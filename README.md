@@ -22,8 +22,21 @@ dist-avalonia\ShortcutPad.exe
 ```
 
 Needs the .NET 9 Desktop Runtime (already installed on this machine).
-`shortcut_pad.json` sits next to the exe — edit it and the pad rebuilds itself
-within a second.
+
+The live config is **per user, not next to the exe**:
+
+| OS | Path |
+|---|---|
+| Windows | `%APPDATA%\ShortcutPad\shortcut_pad.json` |
+| Linux | `$XDG_CONFIG_HOME/ShortcutPad/shortcut_pad.json` (~/.config if unset) |
+| macOS | `~/Library/Application Support/ShortcutPad/shortcut_pad.json` |
+
+It is created on first run and every change is written back, so settings
+survive a rebuild or a reinstall. Earlier versions kept it in the build output
+folder, which `dotnet publish` wipes — that lost every setting on each rebuild.
+An existing `shortcut_pad.json` next to the executable is migrated to the
+per-user location on first run. Edit the file and the pad rebuilds itself
+within a second; the Options window shows the path it is using.
 
 ## Features
 

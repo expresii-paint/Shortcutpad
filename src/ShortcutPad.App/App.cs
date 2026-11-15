@@ -11,7 +11,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is ClassicDesktopStyleApplicationLifetime lifetime)
         {
-            var configPath = Path.Combine(AppContext.BaseDirectory, "shortcut_pad.json");
+            var configPath = ConfigStore.ResolvePath();
             var editorMode = Environment.GetCommandLineArgs().Contains("--edit-buttons");
 
             if (editorMode)

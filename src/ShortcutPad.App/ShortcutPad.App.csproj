@@ -26,7 +26,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="icon.png" />
-    <None Update="shortcut_pad.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

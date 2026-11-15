@@ -46,7 +46,7 @@ public sealed class PadWindow : Window
         BuildUi();
         Title = "Shortcut Pad";
         ShowInTaskbar = true;
-        Topmost = false; // DIAGNOSTIC
+        Topmost = true;
         SizeToContent = SizeToContent.Manual;
         MinWidth = 150;
         MinHeight = 110;
@@ -138,7 +138,7 @@ public sealed class PadWindow : Window
             SetDock = SetDock,
             Exit = Exit,
         };
-        new OptionsWindow(_cfg, actions).Show(this);
+        new OptionsWindow(_cfg, _configPath, actions).Show(this);
     }
 
     private void BuildGrid()
