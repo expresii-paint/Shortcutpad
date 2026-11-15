@@ -5,17 +5,29 @@ using Avalonia.Media;
 
 namespace ShortcutPad;
 
-public class App : Application
+public partial class App : Application
 {
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is ClassicDesktopStyleApplicationLifetime lifetime)
         {
-            // The pad is a tray/overlay utility: closing the window hides it,
-            // it does not quit the app.
-            lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             var configPath = Path.Combine(AppContext.BaseDirectory, "shortcut_pad.json");
-            lifetime.MainWindow = new PadWindow(configPath);
+            var editorMode = Environment.GetCommandLineArgs().Contains("--edit-buttons");
+
+            if (editorMode)
+            {
+                // Standalone editor: ShortcutPad --edit-buttons
+                lifetime.ShutdownMode = ShutdownMode.OnMainWindowClose;
+                lifetime.MainWindow = new ButtonEditorWindow(
+                    ConfigStore.Load(configPath), configPath, cfg => ConfigStore.Save(configPath, cfg));
+            }
+            else
+            {
+                // The pad is a tray/overlay utility: closing the window hides
+                // it, it does not quit the app.
+                lifetime.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                lifetime.MainWindow = new PadWindow(configPath);
+            }
         }
         base.OnFrameworkInitializationCompleted();
     }

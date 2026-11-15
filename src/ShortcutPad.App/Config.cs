@@ -101,6 +101,10 @@ public static class ConfigStore
         return def;
     }
 
+    /// <summary>Deep copy, for editors that should not touch the live config.</summary>
+    public static PadConfig Clone(PadConfig cfg) =>
+        JsonSerializer.Deserialize<PadConfig>(JsonSerializer.Serialize(cfg, Options), Options) ?? new PadConfig();
+
     public static void Save(string path, PadConfig cfg)
     {
         var tmp = path + ".tmp";

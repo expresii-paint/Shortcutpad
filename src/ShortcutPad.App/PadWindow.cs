@@ -340,6 +340,7 @@ public sealed class PadWindow : Window
         menu.Items.Add(MakeItem("Reload config", Reload));
         menu.Items.Add(MakeItem("Edit config", () =>
             Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true })));
+        menu.Items.Add(MakeItem("Edit buttons…", OpenButtonEditor));
         menu.Items.Add(new Separator());
         foreach (var opacity in new[] { 1.0, 0.85, 0.7, 0.5 })
             menu.Items.Add(MakeItem($"Opacity {opacity * 100:0}%", () => SetOpacity(opacity)));
@@ -441,6 +442,23 @@ public sealed class PadWindow : Window
         {
             Status("reload failed: " + ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Open the button editor. It edits a copy of the config; Save writes the
+    /// file and the pad picks it up like any other edit.
+    /// </summary>
+    private void OpenButtonEditor()
+    {
+        var editor = new ButtonEditorWindow(ConfigStore.Clone(_cfg), _configPath, draft =>
+        {
+            _suppressWatcher = true;
+            try { ConfigStore.Save(_configPath, draft); }
+            finally { _suppressWatcher = false; }
+            Reload();
+            Status("buttons saved");
+        });
+        editor.Show(this);
     }
 
     private void SetOpacity(double opacity)
@@ -576,6 +594,7 @@ public sealed class PadWindow : Window
         AddTrayItem(menu, "Reload config", Reload);
         AddTrayItem(menu, "Edit config", () =>
             Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true }));
+        AddTrayItem(menu, "Edit buttons…", OpenButtonEditor);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(MakeTrayCheckable("Auto flow", _cfg.AutoFlow, on =>
         {

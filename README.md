@@ -51,6 +51,11 @@ within a second.
   dragging, releasing within 24 px of the left/right edge snaps it there and
   pins it; the pad then spans the full work-area height.
 - Buttons are hot-reloadable: edit the JSON and the pad rebuilds live.
+- **GUI editor**: right-click the pad (or the tray icon) → **Edit buttons…**, or
+  run `ShortcutPad --edit-buttons`. Add, delete, reorder and edit every field —
+  label, action, colours, icon, sizes, corner radius and spans — then Save. The
+  editor works on a copy, so nothing changes until you press Save; Revert
+  re-reads the file. Editing the JSON by hand still works.
 - **Scriptable**: `ShortcutPad --send "ctrl+c"` / `ShortcutPad --type "text"`
   run headless (no window) — handy in scripts and for testing a platform's
   input path.
@@ -86,7 +91,6 @@ is required, otherwise Avalonia does not hit-test the button.
 ### Customizing a button
 
 Every button accepts these optional fields:
-
 | Field | Meaning | Default |
 |---|---|---|
 | `label` | Text shown under the icon | — |
@@ -108,6 +112,15 @@ Every button accepts these optional fields:
 Spans are packed left-to-right, top-to-bottom, so a wide button pushes the
 buttons after it to the next free space; the row count grows to fit. A span is
 clamped to the grid, and `spanX`/`spanY` below 1 are treated as 1.
+
+To edit them without touching JSON: right-click the pad → **Edit buttons…**
+(also in the tray menu, or `ShortcutPad --edit-buttons`). The editor lists the
+buttons on the left and edits the selected one on the right — label, which of
+keys/text/run it performs, background and foreground colour (with live
+swatches), icon, icon size, font size, corner radius and spans — with Move
+up/down, Add and Delete. It edits a copy of the config: **Save** writes
+`shortcut_pad.json` and the pad hot-reloads it, **Revert** discards the changes
+and re-reads the file.
 
 ### Layout
 
@@ -272,6 +285,23 @@ around them; `cornerRadius: 28` rounded the corner while `cornerRadius: 0` left
 it square; `iconSize: 72` drew a 126 px glyph against 52 px for the default 30;
 `fontSize: 34` vs `fontSize: 9` produced caption bands of 53 px vs 32 px; and
 `foreground` overrode the automatic choice (amber glyphs on a grey button).
+
+The GUI editor was driven through UI Automation: it opens with the first button
+loaded (label `Copy`, keys `ctrl+c`, background `#2d6cdf`, icon `(auto)`), lists
+all 25 buttons with the selected one highlighted, shows the toolbar
+(Move up/down, Add, Delete) and Revert/Save, and pressing Save rewrote
+`shortcut_pad.json` (mtime advanced) and closed the editor. Editing a field and
+re-saving was not completed — the desktop click needed an approval that was not
+granted — so the field-to-config round trip is covered by the shared
+`PadConfig` mapping rather than by a GUI test.
+
+The editor also exposed a latent bug: the app had **no theme at all** (no
+`App.axaml`), so every control ran on the unstyled default template. The pad
+looked fine because its buttons set their own backgrounds, but the editor's
+`ListBox` had no template and rendered nothing — `GetVisualDescendants()` on it
+returned 0. Adding `App.axaml` with `<FluentTheme />` fixed the list and gives
+the whole app the standard Fluent look; the pad's grid, icons and colours were
+re-verified afterwards (5 x 5, icons crisp, white glyphs on the dark buttons).
 
 Verified on Linux (WSL Ubuntu 24.04 under WSLg's X11 display): the self-contained
 build runs, the window appears, the config hot-reloads, `dock: right`/`left`
