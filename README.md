@@ -286,14 +286,18 @@ it square; `iconSize: 72` drew a 126 px glyph against 52 px for the default 30;
 `fontSize: 34` vs `fontSize: 9` produced caption bands of 53 px vs 32 px; and
 `foreground` overrode the automatic choice (amber glyphs on a grey button).
 
-The GUI editor was driven through UI Automation: it opens with the first button
-loaded (label `Copy`, keys `ctrl+c`, background `#2d6cdf`, icon `(auto)`), lists
-all 25 buttons with the selected one highlighted, shows the toolbar
-(Move up/down, Add, Delete) and Revert/Save, and pressing Save rewrote
-`shortcut_pad.json` (mtime advanced) and closed the editor. Editing a field and
-re-saving was not completed — the desktop click needed an approval that was not
-granted — so the field-to-config round trip is covered by the shared
-`PadConfig` mapping rather than by a GUI test.
+The GUI editor was driven through UI Automation, including the full field-edit
+round trip: it opens with the first button loaded (label `Copy`, keys `ctrl+c`,
+background `#2d6cdf`, icon `(auto)`), lists all 25 buttons with the selected one
+highlighted, and shows the toolbar (Move up/down, Add, Delete) and Revert/Save.
+The label field was rewritten to `CopyTest` via `ValuePattern.SetValue`, Save was
+invoked, `shortcut_pad.json` was rewritten with `label: CopyTest`, the editor
+closed, and the pad hot-reloaded the new label — all without desktop clicks.
+
+The first editor build crashed after ~31 minutes: an unhandled
+`NullReferenceException` in the ListBox item template. The virtualizing panel
+builds a container for a stale index while the list is refreshed, so the item
+handed to the template can be null; `Describe` is now null-safe.
 
 The editor also exposed a latent bug: the app had **no theme at all** (no
 `App.axaml`), so every control ran on the unstyled default template. The pad
