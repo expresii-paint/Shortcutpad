@@ -83,6 +83,32 @@ within a second.
 Note: a button with no `color` gets a light-grey brush — an explicit background
 is required, otherwise Avalonia does not hit-test the button.
 
+### Customizing a button
+
+Every button accepts these optional fields:
+
+| Field | Meaning | Default |
+|---|---|---|
+| `label` | Text shown under the icon | — |
+| `keys` / `text` / `run` | What the button does | — |
+| `color` | Background colour | light grey |
+| `foreground` | Text and icon colour (auto: white on dark, black on light) | auto |
+| `icon` | Icon name from `Icons.cs` | inferred from the action |
+| `iconSize` | Icon size in DIPs | 30 |
+| `fontSize` | Caption size | 13 with an icon, 20 without |
+| `cornerRadius` | Corner radius in DIPs | theme (4) |
+| `spanX` / `spanY` | How many grid cells the button occupies | 1 / 1 |
+
+```json
+{ "label": "Select all", "keys": "ctrl+a", "spanX": 2 },
+{ "label": "Big save",   "keys": "ctrl+s", "color": "#1f6f4a",
+  "foreground": "#ffffff", "iconSize": 48, "fontSize": 18, "cornerRadius": 16 }
+```
+
+Spans are packed left-to-right, top-to-bottom, so a wide button pushes the
+buttons after it to the next free space; the row count grows to fit. A span is
+clamped to the grid, and `spanX`/`spanY` below 1 are treated as 1.
+
 ### Layout
 
 | Field | Meaning |
@@ -238,6 +264,14 @@ the 4 DIP button margin); the height stretches with the window because the
 rows are `Star`. Narrowing the pad makes it taller (the row count grows)
 instead of squeezing the buttons. With `"autoFlow": false` the grid stays
 5 x 5 at 1200 x 700 and at 480 x 500, and the buttons stretch.
+
+Per-button customization was verified the same way, plus pixel sampling of a
+DPI-aware capture: `spanX: 2` rendered a 346 px button (2 columns) and `spanY: 2`
+a 218 px button (2 rows) in a 5-column grid with the remaining buttons packed
+around them; `cornerRadius: 28` rounded the corner while `cornerRadius: 0` left
+it square; `iconSize: 72` drew a 126 px glyph against 52 px for the default 30;
+`fontSize: 34` vs `fontSize: 9` produced caption bands of 53 px vs 32 px; and
+`foreground` overrode the automatic choice (amber glyphs on a grey button).
 
 Verified on Linux (WSL Ubuntu 24.04 under WSLg's X11 display): the self-contained
 build runs, the window appears, the config hot-reloads, `dock: right`/`left`

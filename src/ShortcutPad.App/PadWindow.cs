@@ -33,6 +33,10 @@ public sealed class PadWindow : Window
     private const int LabelWithIcon = 13;
     private const int LabelNoIcon = 20;     // glanceable when there is no icon
     private const int SnapDistance = 24;
+    private const double GridMargin = 12.0; // matches the grid's XAML margin
+    private const double StatusHeight = 20.0;
+
+    private readonly record struct Placement(int Row, int Col, int SpanY, int SpanX);
 
     public PadWindow(string configPath)
     {
@@ -119,6 +123,11 @@ public sealed class PadWindow : Window
             btn.Foreground = btn.Background is ISolidColorBrush solid && Luminance(solid.Color) < 0.55f
                 ? Brushes.White
                 : Brushes.Black;
+            if (!string.IsNullOrWhiteSpace(b.Foreground) &&
+                new BrushConverter().ConvertFromString(b.Foreground) is IBrush fgBrush)
+                btn.Foreground = fgBrush;
+            if (b.CornerRadius is > 0)
+                btn.CornerRadius = new CornerRadius(b.CornerRadius.Value);
 
             var icon = PadIcons.ResolveFor(b);
             if (icon is not null && PadIcons.TryGet(icon, out var pathData))
@@ -126,8 +135,8 @@ public sealed class PadWindow : Window
                 var iconPath = new Avalonia.Controls.Shapes.Path
                 {
                     Data = Geometry.Parse(pathData),
-                    Width = IconSize,
-                    Height = IconSize,
+                    Width = b.IconSize ?? IconSize,
+                    Height = b.IconSize ?? IconSize,
                     Stretch = Stretch.Uniform,
                     Fill = btn.Foreground,
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -135,7 +144,7 @@ public sealed class PadWindow : Window
                 var caption = new TextBlock
                 {
                     Text = b.Label,
-                    FontSize = LabelWithIcon,
+                    FontSize = b.FontSize ?? LabelWithIcon,
                     TextAlignment = TextAlignment.Center,
                     TextWrapping = TextWrapping.Wrap,
                 };
@@ -156,7 +165,7 @@ public sealed class PadWindow : Window
                 btn.Content = new TextBlock
                 {
                     Text = b.Label,
-                    FontSize = LabelNoIcon,
+                    FontSize = b.FontSize ?? LabelNoIcon,
                     FontWeight = FontWeight.SemiBold,
                     TextAlignment = TextAlignment.Center,
                     TextWrapping = TextWrapping.Wrap,
@@ -176,13 +185,81 @@ public sealed class PadWindow : Window
         ApplyFlow();
     }
 
-    private static double Luminance(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
+    /// <summary>Relative luminance, normalized to 0..1.</summary>
+    private static double Luminance(Color c) => (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255.0;
 
     // ------------------------------------------------------------ reflow
 
     private bool _flowSuspended;
 
     private bool IsDocked => _cfg.Dock is "left" or "right";
+
+    /// <summary>
+    /// Compute the grid for a given window width: the column count from the
+    /// width, the row count from how the buttons (spans included) pack into it.
+    /// </summary>
+    private (int cols, int rows, List<Placement> placement) ComputeGrid(double widthDips)
+    {
+        var n = _cfg.Buttons.Count;
+        if (n == 0) return (1, 1, new List<Placement>());
+
+        var cols = _cfg.AutoFlow
+            ? Math.Max(1, Math.Min(n, (int)((widthDips - GridMargin) / Math.Max(20, _cfg.ButtonWidth))))
+            : Math.Max(1, Math.Min(n, _cfg.Columns));
+
+        var rows = Math.Max(1, (int)Math.Ceiling(n / (double)cols));
+        List<Placement> placement;
+        var guard = 0;
+        while (guard++ < 400)
+        {
+            if (TryPack(_cfg.Buttons, cols, rows, out placement)) return (cols, rows, placement);
+            rows++;
+        }
+        // Should not happen (rows == n always fits 1x1); keep the grid sane.
+        TryPack(_cfg.Buttons, cols, n, out placement);
+        return (cols, n, placement);
+    }
+
+    /// <summary>Place buttons left-to-right, top-to-bottom, honouring their spans.</summary>
+    private static bool TryPack(IReadOnlyList<PadButton> buttons, int cols, int rows, out List<Placement> placement)
+    {
+        var taken = new bool[rows * cols];
+        placement = new List<Placement>(buttons.Count);
+        foreach (var b in buttons)
+        {
+            var sx = Math.Clamp(b.SpanX < 1 ? 1 : b.SpanX, 1, cols);
+            var sy = Math.Clamp(b.SpanY < 1 ? 1 : b.SpanY, 1, rows);
+            var placed = false;
+            for (var r = 0; r <= rows - sy && !placed; r++)
+            {
+                for (var c = 0; c <= cols - sx && !placed; c++)
+                {
+                    if (!IsFree(taken, cols, rows, r, c, sy, sx)) continue;
+                    Occupy(taken, cols, r, c, sy, sx);
+                    placement.Add(new Placement(r, c, sy, sx));
+                    placed = true;
+                }
+            }
+            if (!placed) return false;
+        }
+        return true;
+    }
+
+    private static bool IsFree(bool[] taken, int cols, int rows, int r, int c, int sy, int sx)
+    {
+        if (r < 0 || c < 0 || r + sy > rows || c + sx > cols) return false;
+        for (var y = r; y < r + sy; y++)
+            for (var x = c; x < c + sx; x++)
+                if (taken[y * cols + x]) return false;
+        return true;
+    }
+
+    private static void Occupy(bool[] taken, int cols, int r, int c, int sy, int sx)
+    {
+        for (var y = r; y < r + sy; y++)
+            for (var x = c; x < c + sx; x++)
+                taken[y * cols + x] = true;
+    }
 
     /// <summary>
     /// Recompute the column/row counts from the current window size.
@@ -197,17 +274,7 @@ public sealed class PadWindow : Window
         var n = _cfg.Buttons.Count;
         if (n == 0 || _grid.Children.Count == 0) return;
 
-        const double margin = 12.0;    // the grid's margin, DIPs
-        const double status = 20.0;    // the status line, DIPs
-
-        // ClientSize is stale until the first layout, so derive from Width
-        // (which ApplyConfig sets explicitly) instead.
-        var clientW = Math.Max(1.0, Width - margin);
-
-        var cols = _cfg.AutoFlow
-            ? Math.Max(1, Math.Min(n, (int)(clientW / Math.Max(20, _cfg.ButtonWidth))))
-            : Math.Max(1, _cfg.Columns);
-        var rows = Math.Max(1, (int)Math.Ceiling(n / (double)cols));
+        var (cols, rows, placement) = ComputeGrid(Width);
 
         _flowSuspended = true;
         try
@@ -219,10 +286,12 @@ public sealed class PadWindow : Window
             for (var r = 0; r < rows; r++)
                 _grid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
 
-            for (var i = 0; i < _grid.Children.Count && i < n; i++)
+            for (var i = 0; i < _grid.Children.Count && i < placement.Count; i++)
             {
-                Grid.SetRow(_grid.Children[i], i / cols);
-                Grid.SetColumn(_grid.Children[i], i % cols);
+                Grid.SetRow(_grid.Children[i], placement[i].Row);
+                Grid.SetColumn(_grid.Children[i], placement[i].Col);
+                Grid.SetRowSpan(_grid.Children[i], placement[i].SpanY);
+                Grid.SetColumnSpan(_grid.Children[i], placement[i].SpanX);
             }
 
             if (!IsDocked)
@@ -231,8 +300,8 @@ public sealed class PadWindow : Window
                 // target width, so only one column is a hard floor. Height is
                 // different: more rows means the window must grow, otherwise
                 // the buttons would be squeezed short.
-                MinWidth = _cfg.ButtonWidth + margin;
-                MinHeight = rows * _cfg.ButtonHeight + margin + status + ChromeHeight();
+                MinWidth = _cfg.ButtonWidth + GridMargin;
+                MinHeight = rows * _cfg.ButtonHeight + GridMargin + StatusHeight + ChromeHeight();
             }
             Status($"{cols} x {rows}");
         }

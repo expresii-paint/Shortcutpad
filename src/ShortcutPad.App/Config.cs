@@ -52,6 +52,24 @@ public sealed class PadButton
     /// When omitted the icon is inferred from <see cref="Keys"/> / <see cref="Run"/>.
     /// </summary>
     public string? Icon { get; set; }
+
+    /// <summary>Text/icon colour. Omit to pick white or black from <see cref="Color"/>.</summary>
+    public string? Foreground { get; set; }
+
+    /// <summary>Caption font size. Default: 13 with an icon, 20 without.</summary>
+    public int? FontSize { get; set; }
+
+    /// <summary>Icon size in DIPs. Default 30.</summary>
+    public int? IconSize { get; set; }
+
+    /// <summary>Button corner radius in DIPs. Omit for the theme default.</summary>
+    public int? CornerRadius { get; set; }
+
+    /// <summary>How many grid columns this button spans (default 1).</summary>
+    public int SpanX { get; set; } = 1;
+
+    /// <summary>How many grid rows this button spans (default 1).</summary>
+    public int SpanY { get; set; } = 1;
 }
 
 public static class ConfigStore
@@ -59,6 +77,7 @@ public static class ConfigStore
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
