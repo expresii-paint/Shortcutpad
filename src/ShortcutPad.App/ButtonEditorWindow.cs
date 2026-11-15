@@ -221,8 +221,11 @@ public sealed class ButtonEditorWindow : Window
         return b;
     }
 
-    private static string Describe(PadButton b)
+    private static string Describe(PadButton? b)
     {
+        // The virtualizing panel can build a container for a stale index, so a
+        // null item is possible while the list is being refreshed.
+        if (b is null) return "(none)";
         var action = !string.IsNullOrWhiteSpace(b.Keys) ? b.Keys
                   : !string.IsNullOrWhiteSpace(b.Text) ? "“" + b.Text + "”"
                   : !string.IsNullOrWhiteSpace(b.Run) ? b.Run
