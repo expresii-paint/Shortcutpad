@@ -44,11 +44,11 @@ within a second.
   the 44/48 pt minimums), with grid rows set to `Star`.
 - **Resizable**: drag any edge or corner. The window remembers its size.
 - **Auto flow** (`"autoFlow": true`, also a menu/tray toggle): the column and
-  row counts follow the window, so the buttons keep the target size instead of
-  being squeezed. Measured on this machine: 900 px wide → 8 x 4, 420 px →
-  3 x 9, 1600 px → 15 x 2, with button widths always at or above the target.
-  With auto flow off, `"columns"` is fixed and resizing just stretches the
-  buttons.
+  row counts are derived from the window's actual size, so the window stays
+  freely resizable and the buttons keep the target size — whatever does not fit
+  is left out rather than squeezed, and the status line reports
+  `cols x rows (shown of total)`. With auto flow off, `"columns"` is fixed and
+  every button stays visible.
 - **Icons for common actions** (Material Design Icons, Apache-2.0, embedded as
   vector paths — nothing binary ships): copy, paste, cut, undo, redo, save,
   select-all, find, enter, esc, tab, backspace, home, delete, task manager,
@@ -83,7 +83,7 @@ within a second.
   "buttonWidth": 100,
   "buttonHeight": 62,
   "width": 526,
-  "height": 381,
+  "height": 400,
   "x": 60, "y": 60,
   "buttons": [
     { "label": "Copy",     "keys": "ctrl+c",              "color": "#2d6cdf" },
@@ -143,11 +143,15 @@ and re-reads the file.
 | `width` / `height` | Remembered window size in DIPs (auto flow). |
 | `columns` | Fixed column count, used when `autoFlow` is `false`. |
 
-Auto flow derives the columns from the width (`floor(width / buttonWidth)`)
-and the rows from the button count, so a button is never narrower than the
-target. The window's minimum height then grows with the row count — narrowing
-the pad makes it taller rather than squeezing the buttons. One column is always
-allowed as the minimum width.
+Auto flow derives the columns from the available width
+(`floor((width - margin) / buttonWidth)`) and the rows from the available
+height, so the window stays freely resizable and a button is never narrower or
+shorter than the target. **Buttons that do not fit are left out** rather than
+squeezed, and the status line reports `cols x rows (shown of total)` when that
+happens. Auto flow sets only a small minimum size, so the pad can be resized
+down to a single button. With `"autoFlow": false` the grid keeps the configured
+column count, every button stays visible, and the window's minimum size grows
+with the row count so the buttons keep their target size.
 
 ### Icons
 
@@ -276,18 +280,24 @@ Resizing and auto flow were verified by driving the real window with
 `SetWindowPos` and reading the resulting grid back through UI Automation
 (`probe.exe --layout` dumps every button's on-screen rectangle):
 
-| Window (DIP) | Grid | Button width |
+| Window (DIP) | Grid | Buttons shown |
 |---|---|---|
-| 526 x 381 | 5 x 5 | 92 |
-| 900 x 620 | 8 x 4 | 101 |
-| 420 x 900 | 3 x 9 | 123 |
-| 1600 x 500 | 15 x 2 | 97 |
+| 526 x 400 (default) | 5 x 5 | 25 of 25 |
+| 526 x 381 | 5 x 4 | 20 of 25 |
+| 400 x 300 | 3 x 3 | 9 of 25 |
+| 300 x 250 | 2 x 2 | 4 of 25 |
+| 200 x 200 | 1 x 1 | 1 of 25 |
+| 900 x 620 | 8 x 8 | 25 of 25 |
 
-Button width never drops below the 100 DIP target (the small deficit at 526 is
-the 4 DIP button margin); the height stretches with the window because the
-rows are `Star`. Narrowing the pad makes it taller (the row count grows)
-instead of squeezing the buttons. With `"autoFlow": false` the grid stays
-5 x 5 at 1200 x 700 and at 480 x 500, and the buttons stretch.
+With auto flow on, the window is freely resizable: the grid follows the space
+it is given and the buttons that no longer fit are left out (the status line
+shows `cols x rows (shown of total)`), so a button is never squeezed below the
+target size. Verified that a hidden button is genuinely absent from the
+accessibility tree (`BUTTON 'Hello' NOT FOUND` at 300 x 250) while a visible
+one still works (`CLICK OK`). The rows are `Star`, so the buttons fill the
+height they are given. With `"autoFlow": false` the grid stays 5 x 5 at every
+window size tested (1200 x 700 down to 200 x 200) with all 25 buttons present,
+and the window's minimum size keeps them at the target size.
 
 Per-button customization was verified the same way, plus pixel sampling of a
 DPI-aware capture: `spanX: 2` rendered a 346 px button (2 columns) and `spanY: 2`

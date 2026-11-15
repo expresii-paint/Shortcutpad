@@ -10,7 +10,7 @@
   "buttonWidth": 100,
   "buttonHeight": 62,
   "width": 526,
-  "height": 381,
+  "height": 400,
   "buttons": [
     { "label": "Copy",       "keys": "ctrl+c",              "color": "#2d6cdf" },
     { "label": "Paste",      "keys": "ctrl+v",              "color": "#2d6cdf" },

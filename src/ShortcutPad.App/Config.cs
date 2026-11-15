@@ -33,7 +33,7 @@ public sealed class PadConfig
     public double Width { get; set; } = 526;
 
     /// <summary>Remembered window size in DIPs (autoFlow only).</summary>
-    public double Height { get; set; } = 381;
+    public double Height { get; set; } = 400;
 
     /// <summary>Target button size in DIPs, used by auto flow.</summary>
     public int ButtonWidth { get; set; } = 100;

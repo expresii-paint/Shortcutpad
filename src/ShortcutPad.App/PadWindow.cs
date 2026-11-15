@@ -28,12 +28,10 @@ public sealed class PadWindow : Window
     private bool _suppressWatcher;
     private PixelPoint _lastPosition;
 
-    private const int ButtonWidth = 100;
-    private const int ButtonHeight = 62;    // DIPs: comfortably touch-sized
+    private const int SnapDistance = 24;
     private const int IconSize = 30;
     private const int LabelWithIcon = 13;
     private const int LabelNoIcon = 20;     // glanceable when there is no icon
-    private const int SnapDistance = 24;
     private const double GridMargin = 12.0; // matches the grid's XAML margin
     private const double StatusHeight = 40.0; // bottom row: status text + menu button
 
@@ -236,8 +234,6 @@ public sealed class PadWindow : Window
             Grid.SetColumn(btn, i % cols);
         }
 
-        Width = cols * ButtonWidth + 12;
-        Height = rows * ButtonHeight + GridMargin + StatusHeight;
         ApplyFlow();
     }
 
@@ -251,54 +247,57 @@ public sealed class PadWindow : Window
     private bool IsDocked => _cfg.Dock is "left" or "right";
 
     /// <summary>
-    /// Compute the grid for a given window width: the column count from the
-    /// width, the row count from how the buttons (spans included) pack into it.
+    /// Compute the grid for the space the window actually has: the column count
+    /// from the width and the row count from the height. Auto flow no longer
+    /// grows rows to fit every button — whatever does not fit is left out, so
+    /// the window stays freely resizable. Fixed mode keeps the configured column
+    /// count and lets the buttons stretch.
     /// </summary>
-    private (int cols, int rows, List<Placement> placement) ComputeGrid(double widthDips)
+    private (int cols, int rows, Placement?[] slots) ComputeGrid(double widthDips, double heightDips)
     {
         var n = _cfg.Buttons.Count;
-        if (n == 0) return (1, 1, new List<Placement>());
+        if (n == 0) return (1, 1, Array.Empty<Placement?>());
 
         var cols = _cfg.AutoFlow
             ? Math.Max(1, Math.Min(n, (int)((widthDips - GridMargin) / Math.Max(20, _cfg.ButtonWidth))))
             : Math.Max(1, Math.Min(n, _cfg.Columns));
 
-        var rows = Math.Max(1, (int)Math.Ceiling(n / (double)cols));
-        List<Placement> placement;
-        var guard = 0;
-        while (guard++ < 400)
-        {
-            if (TryPack(_cfg.Buttons, cols, rows, out placement)) return (cols, rows, placement);
-            rows++;
-        }
-        // Should not happen (rows == n always fits 1x1); keep the grid sane.
-        TryPack(_cfg.Buttons, cols, n, out placement);
-        return (cols, n, placement);
+        var rows = _cfg.AutoFlow
+            ? Math.Max(1, Math.Min(n, (int)((heightDips - GridMargin - StatusHeight) / Math.Max(20, _cfg.ButtonHeight))))
+            : Math.Max(1, (int)Math.Ceiling(n / (double)cols));
+
+        return (cols, rows, PackVisible(_cfg.Buttons, cols, rows));
     }
 
-    /// <summary>Place buttons left-to-right, top-to-bottom, honouring their spans.</summary>
-    private static bool TryPack(IReadOnlyList<PadButton> buttons, int cols, int rows, out List<Placement> placement)
+    /// <summary>
+    /// Place buttons left-to-right, top-to-bottom, honouring their spans. A
+    /// button that does not fit in the available cols x rows gets a null slot
+    /// (it is hidden) instead of squeezing the rest or growing the window.
+    /// </summary>
+    private static Placement?[] PackVisible(IReadOnlyList<PadButton> buttons, int cols, int rows)
     {
         var taken = new bool[rows * cols];
-        placement = new List<Placement>(buttons.Count);
-        foreach (var b in buttons)
+        var slots = new Placement?[buttons.Count];
+        for (var i = 0; i < buttons.Count; i++)
         {
+            var b = buttons[i];
             var sx = Math.Clamp(b.SpanX < 1 ? 1 : b.SpanX, 1, cols);
             var sy = Math.Clamp(b.SpanY < 1 ? 1 : b.SpanY, 1, rows);
-            var placed = false;
-            for (var r = 0; r <= rows - sy && !placed; r++)
+            for (var r = 0; r <= rows - sy; r++)
             {
-                for (var c = 0; c <= cols - sx && !placed; c++)
+                var placed = false;
+                for (var c = 0; c <= cols - sx; c++)
                 {
                     if (!IsFree(taken, cols, rows, r, c, sy, sx)) continue;
                     Occupy(taken, cols, r, c, sy, sx);
-                    placement.Add(new Placement(r, c, sy, sx));
+                    slots[i] = new Placement(r, c, sy, sx);
                     placed = true;
+                    break;
                 }
+                if (placed) break;
             }
-            if (!placed) return false;
         }
-        return true;
+        return slots;
     }
 
     private static bool IsFree(bool[] taken, int cols, int rows, int r, int c, int sy, int sx)
@@ -330,7 +329,12 @@ public sealed class PadWindow : Window
         var n = _cfg.Buttons.Count;
         if (n == 0 || _grid.Children.Count == 0) return;
 
-        var (cols, rows, placement) = ComputeGrid(Width);
+        // The space the grid actually gets. ClientSize is authoritative; fall
+        // back to the window size minus the title bar before the first layout.
+        var availW = ClientSize.Width > 0 ? ClientSize.Width : Width;
+        var availH = ClientSize.Height > 0 ? ClientSize.Height : Math.Max(1, Height - ChromeHeight());
+
+        var (cols, rows, slots) = ComputeGrid(availW, availH);
 
         _flowSuspended = true;
         try
@@ -342,24 +346,42 @@ public sealed class PadWindow : Window
             for (var r = 0; r < rows; r++)
                 _grid.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
 
-            for (var i = 0; i < _grid.Children.Count && i < placement.Count; i++)
+            var shown = 0;
+            for (var i = 0; i < _grid.Children.Count && i < slots.Length; i++)
             {
-                Grid.SetRow(_grid.Children[i], placement[i].Row);
-                Grid.SetColumn(_grid.Children[i], placement[i].Col);
-                Grid.SetRowSpan(_grid.Children[i], placement[i].SpanY);
-                Grid.SetColumnSpan(_grid.Children[i], placement[i].SpanX);
+                var child = _grid.Children[i];
+                var slot = slots[i];
+                child.IsVisible = slot is not null;
+                // Reset the attached values too: the grid measures children even
+                // when they are not visible, and a stale row/span from a larger
+                // previous layout would be out of range.
+                Grid.SetRow(child, slot?.Row ?? 0);
+                Grid.SetColumn(child, slot?.Col ?? 0);
+                Grid.SetRowSpan(child, slot?.SpanY ?? 1);
+                Grid.SetColumnSpan(child, slot?.SpanX ?? 1);
+                if (slot is null) continue;
+                shown++;
             }
 
             if (!IsDocked)
             {
-                // The column formula already keeps buttons at or above the
-                // target width, so only one column is a hard floor. Height is
-                // different: more rows means the window must grow, otherwise
-                // the buttons would be squeezed short.
-                MinWidth = _cfg.ButtonWidth + GridMargin;
-                MinHeight = rows * _cfg.ButtonHeight + GridMargin + StatusHeight + ChromeHeight();
+                if (_cfg.AutoFlow)
+                {
+                    // Freely resizable: whatever does not fit is left out.
+                    MinWidth = GridMargin + 80;
+                    MinHeight = GridMargin + StatusHeight + ChromeHeight() + 40;
+                }
+                else
+                {
+                    // Fixed columns: keep the buttons at their target size.
+                    MinWidth = _cfg.ButtonWidth + GridMargin;
+                    MinHeight = rows * _cfg.ButtonHeight + GridMargin + StatusHeight + ChromeHeight();
+                }
             }
-            Status($"{cols} x {rows}");
+
+            Status(_cfg.AutoFlow && shown < _cfg.Buttons.Count
+                ? $"{cols} x {rows}  ({shown} of {_cfg.Buttons.Count})"
+                : $"{cols} x {rows}");
         }
         finally { _flowSuspended = false; }
     }
