@@ -61,10 +61,23 @@ public sealed class PadWindow : Window
 
         PositionChanged += OnPositionChanged;
         SizeChanged += OnSizeChanged;
+        Opened += (_, _) => WindowChrome.HideMaximize(this, _platform);
 
     }
 
     // ------------------------------------------------------------ UI
+
+    /// <summary>
+    /// Resizing follows the user's setting, but the maximize control is never
+    /// wanted. Changing <see cref="Window.CanResize"/> makes Avalonia rebuild
+    /// the native frame, which restores the platform's maximize button, so it
+    /// is hidden again here.
+    /// </summary>
+    private void SetResizable(bool value)
+    {
+        CanResize = value;
+        WindowChrome.HideMaximize(this, _platform);
+    }
 
     private void BuildUi()
     {
@@ -131,7 +144,7 @@ public sealed class PadWindow : Window
             SetResizable = on =>
             {
                 _cfg.Resizable = on;
-                CanResize = on && !IsDocked;
+                SetResizable(on && !IsDocked);
                 Status($"resizable {(on ? "on" : "off")}");
                 QueueSave();
             },
@@ -434,7 +447,7 @@ public sealed class PadWindow : Window
         menu.Items.Add(MakeCheckable("Resizable", _cfg.Resizable, on =>
         {
             _cfg.Resizable = on;
-            CanResize = on && !IsDocked;
+            SetResizable(on && !IsDocked);
             Status($"resizable {(on ? "on" : "off")}");
             QueueSave();
         }));
@@ -500,7 +513,7 @@ public sealed class PadWindow : Window
             // Restore the remembered size, then reflow it into a grid.
             Width = Math.Max(MinWidth, _cfg.Width);
             Height = Math.Max(MinHeight, _cfg.Height);
-            CanResize = _cfg.Resizable;
+            SetResizable(_cfg.Resizable);
             ApplyFlow();
         }
 
@@ -555,7 +568,7 @@ public sealed class PadWindow : Window
             _cfg.Dock = "none";
             MinWidth = 150;
             MinHeight = 110;
-            CanResize = _cfg.Resizable;
+            SetResizable(_cfg.Resizable);
             ApplyFlow();
             Status("undocked");
         }
@@ -584,7 +597,7 @@ public sealed class PadWindow : Window
             ? new PixelPoint(wa.X, wa.Y)
             : new PixelPoint((int)(wa.Right - width * scale - 2 * sideChrome * scale), wa.Y);
         Topmost = true;
-        CanResize = false;
+        SetResizable(false);
     }
 
     /// <summary>Physical pixels per DIP, measured from the window itself.</summary>
@@ -684,7 +697,7 @@ public sealed class PadWindow : Window
         menu.Items.Add(MakeTrayCheckable("Resizable", _cfg.Resizable, on =>
         {
             _cfg.Resizable = on;
-            CanResize = on && !IsDocked;
+            SetResizable(on && !IsDocked);
             Status($"resizable {(on ? "on" : "off")}");
             QueueSave();
         }));

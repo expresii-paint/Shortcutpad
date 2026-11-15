@@ -55,7 +55,13 @@ within a second; the Options window shows the path it is using.
   and hands focus back before sending, so your workflow is not interrupted.
 - **Touch-sized buttons**: the target is 100 x 62 DIPs per button (well above
   the 44/48 pt minimums), with grid rows set to `Star`.
-- **Resizable**: drag any edge or corner. The window remembers its size.
+- **Resizable**: drag any edge or corner. The window remembers its size. The
+  **maximize button is hidden** — a utility pad has no useful maximized state —
+  while the frame stays sizeable. Avalonia has no cross-platform
+  `CanMaximize`, so `IPadPlatform.SetMaximizeButton` does it natively: it drops
+  `WS_MAXIMIZEBOX` on Windows (leaving `WS_THICKFRAME`), hides the zoom button
+  on macOS and removes the two maximize actions from `_NET_WM_ALLOWED_ACTIONS`
+  on X11.
 - **Auto flow** (`"autoFlow": true`, also a menu/tray toggle): the column and
   row counts are derived from the window's actual size, so the window stays
   freely resizable and the buttons keep the target size — whatever does not fit

@@ -69,6 +69,7 @@ public sealed class ButtonEditorWindow : Window
 
         Title = "Edit buttons";
         Icon = AppIcon.TryLoad();
+        Opened += (_, _) => WindowChrome.HideMaximize(this, PadPlatform.Create());
         Width = 860;
         Height = 560;
         MinWidth = 680;

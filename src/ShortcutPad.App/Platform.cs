@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using System.Runtime.InteropServices;
 
 namespace ShortcutPad;
@@ -34,6 +35,19 @@ public interface IPadPlatform
     /// restarting the pad inside the snap band silently docks it.
     /// </summary>
     bool IsPointerDown();
+
+    /// <summary>
+    /// Show or hide the window's maximize control. The pad is a utility window
+    /// with no useful maximized state, but it must stay resizable so the user
+    /// can size it freely - so this is not the same as making it
+    /// non-resizable.
+    /// </summary>
+    /// <param name="visible">True to restore the platform default.</param>
+    /// <param name="window">
+    /// The pad's native window: HWND on Windows, NSWindow on macOS, X11 window
+    /// id on Linux.
+    /// </param>
+    void SetMaximizeButton(bool visible, IntPtr window);
 }
 
 public static class PadPlatform
@@ -43,6 +57,25 @@ public static class PadPlatform
         : OperatingSystem.IsMacOS() ? new MacPlatform()
         : OperatingSystem.IsLinux() ? new LinuxPlatform()
         : throw new PlatformNotSupportedException("Shortcut Pad supports Windows, macOS and Linux (X11).");
+}
+
+/// <summary>
+/// Window-chrome tweaks shared by the pad and its dialogs.
+/// </summary>
+internal static class WindowChrome
+{
+    /// <summary>
+    /// Hide a window's maximize control. The pad and its dialogs are utility
+    /// windows with no useful maximized state, but they stay resizable.
+    /// Call this again after <see cref="Window.CanResize"/> changes: the
+    /// platform rebuilds the native frame from it, which would bring the
+    /// button back.
+    /// </summary>
+    public static void HideMaximize(Window window, IPadPlatform platform)
+    {
+        if (window.TryGetPlatformHandle() is { } handle)
+            platform.SetMaximizeButton(false, handle.Handle);
+    }
 }
 
 // ---------------------------------------------------------------- Windows
@@ -76,6 +109,40 @@ public sealed class WindowsPlatform : IPadPlatform
     }
 
     public bool IsPointerDown() => (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+
+    // -------------------------------------------------------- window chrome
+
+    private const int GWL_STYLE = -16;
+    private const int WS_MAXIMIZEBOX = 0x00010000;
+
+    // SetWindowPos flags: force the frame (and its buttons) to be rebuilt.
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_FRAMECHANGED = 0x0020;
+
+    [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int index);
+    [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hWnd, int index, int newStyle);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr after,
+        int x, int y, int cx, int cy, uint flags);
+
+    /// <summary>
+    /// Drops <c>WS_MAXIMIZEBOX</c> from the window style. The thick frame is
+    /// left alone, so the pad can still be resized by dragging its edges.
+    /// </summary>
+    public void SetMaximizeButton(bool visible, IntPtr window)
+    {
+        if (window == IntPtr.Zero) return;
+
+        var style = GetWindowLong(window, GWL_STYLE);
+        var updated = visible ? style | WS_MAXIMIZEBOX : style & ~WS_MAXIMIZEBOX;
+        if (updated == style) return;
+
+        SetWindowLong(window, GWL_STYLE, updated);
+        SetWindowPos(window, IntPtr.Zero, 0, 0, 0, 0,
+            SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
 }
 
 // ---------------------------------------------------------------- macOS
@@ -127,6 +194,20 @@ public sealed class MacPlatform : IPadPlatform
     /// </summary>
     public bool IsPointerDown() =>
         objc_msgSend(objc_getClass("NSEvent"), sel_getUid("pressedMouseButtons")) != IntPtr.Zero;
+
+    /// <summary>
+    /// Hides the green zoom button. Resizing is left untouched, so the pad can
+    /// still be sized by dragging its corner.
+    /// </summary>
+    public void SetMaximizeButton(bool visible, IntPtr window)
+    {
+        if (window == IntPtr.Zero) return;
+
+        // NSWindowZoomButton (close = 0, miniaturize = 1, zoom = 2)
+        var button = objc_msgSend(window, sel_getUid("standardWindowButton:"), (IntPtr)2);
+        if (button == IntPtr.Zero) return;
+        objc_msgSend(button, sel_getUid("setHidden:"), (IntPtr)(visible ? 0 : 1));
+    }
 
     private static string? ActiveBundleId()
     {

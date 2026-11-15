@@ -44,6 +44,7 @@ public sealed class OptionsWindow : Window
 
         Title = "Options";
         Icon = AppIcon.TryLoad();
+        Opened += (_, _) => WindowChrome.HideMaximize(this, PadPlatform.Create());
         Width = 430;
         Height = 660;
         MinWidth = 340;

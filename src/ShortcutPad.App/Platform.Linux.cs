@@ -135,6 +135,71 @@ public sealed class LinuxPlatform : IPadPlatform
         }
     }
 
+    /// <summary>
+    /// Publishes <c>_NET_WM_ALLOWED_ACTIONS</c> without the two maximize
+    /// actions, which is how an EWMH window manager knows not to offer
+    /// maximizing. Resizing stays allowed.
+    /// </summary>
+    public void SetMaximizeButton(bool visible, IntPtr window)
+    {
+        try
+        {
+            if (Display == IntPtr.Zero || window == IntPtr.Zero) return;
+
+            var names = VisibleActions(visible);
+            var atoms = new ulong[names.Length];
+            for (var i = 0; i < names.Length; i++)
+            {
+                atoms[i] = XInternAtom(Display, names[i], false);
+                if (atoms[i] == 0) return;
+            }
+
+            var property = XInternAtom(Display, "_NET_WM_ALLOWED_ACTIONS", false);
+            var type = XInternAtom(Display, "ATOM", false);
+            if (property == 0 || type == 0) return;
+
+            var pinned = GCHandle.Alloc(atoms, GCHandleType.Pinned);
+            try
+            {
+                XChangeProperty(Display, (ulong)window.ToInt64(), property, type, 32, 0,
+                    pinned.AddrOfPinnedObject(), atoms.Length);
+                XFlush(Display);
+            }
+            finally
+            {
+                pinned.Free();
+            }
+        }
+        catch
+        {
+            // A window manager without EWMH simply keeps its default buttons.
+        }
+    }
+
+    private static readonly string[] AllActions =
+    {
+        "_NET_WM_ACTION_MOVE",
+        "_NET_WM_ACTION_RESIZE",
+        "_NET_WM_ACTION_MINIMIZE",
+        "_NET_WM_ACTION_SHADE",
+        "_NET_WM_ACTION_STICK",
+        "_NET_WM_ACTION_MAXIMIZE_HORZ",
+        "_NET_WM_ACTION_MAXIMIZE_VERT",
+        "_NET_WM_ACTION_FULLSCREEN",
+        "_NET_WM_ACTION_CHANGE_DESKTOP",
+        "_NET_WM_ACTION_CLOSE",
+        "_NET_WM_ACTION_ABOVE",
+        "_NET_WM_ACTION_BELOW",
+    };
+
+    private static string[] VisibleActions(bool maximize) =>
+        maximize ? AllActions
+        : AllActions.Where(a => !a.Contains("MAXIMIZE")).ToArray();
+
+    [DllImport(X11)] private static extern int XChangeProperty(
+        IntPtr d, ulong w, ulong property, ulong type, int format, int mode,
+        IntPtr data, int nelements);
+
     // ------------------------------------------------------------------ X11
 
     private ulong ActiveWindow()
