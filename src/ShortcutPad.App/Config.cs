@@ -1,3 +1,6 @@
+using System;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -39,37 +42,69 @@ public sealed class PadConfig
     public List<PadButton> Buttons { get; set; } = new();
 }
 
-public sealed class PadButton
+public sealed class PadButton : INotifyPropertyChanged
 {
-    public string Label { get; set; } = "";
-    public string? Keys { get; set; }
-    public string? Text { get; set; }
-    public string? Run { get; set; }
-    public string? Color { get; set; }
+    private string _label = "";
+    private string? _keys, _text, _run, _color, _icon, _foreground;
+    private int? _fontSize, _iconSize, _cornerRadius;
+    private int _spanX = 1, _spanY = 1;
+
+    public string Label { get => _label; set => Set(ref _label, value); }
+    public string? Keys { get => _keys; set => Set(ref _keys, value); }
+    public string? Text { get => _text; set => Set(ref _text, value); }
+    public string? Run { get => _run; set => Set(ref _run, value); }
+    public string? Color { get => _color; set => Set(ref _color, value); }
 
     /// <summary>
     /// Optional icon name from <see cref="PadIcons"/>, e.g. "undo", "content-copy".
     /// When omitted the icon is inferred from <see cref="Keys"/> / <see cref="Run"/>.
     /// </summary>
-    public string? Icon { get; set; }
+    public string? Icon { get => _icon; set => Set(ref _icon, value); }
 
     /// <summary>Text/icon colour. Omit to pick white or black from <see cref="Color"/>.</summary>
-    public string? Foreground { get; set; }
+    public string? Foreground { get => _foreground; set => Set(ref _foreground, value); }
 
     /// <summary>Caption font size. Default: 13 with an icon, 20 without.</summary>
-    public int? FontSize { get; set; }
+    public int? FontSize { get => _fontSize; set => Set(ref _fontSize, value); }
 
     /// <summary>Icon size in DIPs. Default 30.</summary>
-    public int? IconSize { get; set; }
+    public int? IconSize { get => _iconSize; set => Set(ref _iconSize, value); }
 
     /// <summary>Button corner radius in DIPs. Omit for the theme default.</summary>
-    public int? CornerRadius { get; set; }
+    public int? CornerRadius { get => _cornerRadius; set => Set(ref _cornerRadius, value); }
 
     /// <summary>How many grid columns this button spans (default 1).</summary>
-    public int SpanX { get; set; } = 1;
+    public int SpanX { get => _spanX; set => Set(ref _spanX, value); }
 
     /// <summary>How many grid rows this button spans (default 1).</summary>
-    public int SpanY { get; set; } = 1;
+    public int SpanY { get => _spanY; set => Set(ref _spanY, value); }
+
+    /// <summary>
+    /// One-line summary used by the editor's list. Not serialized; it is
+    /// recomputed and announced whenever the fields it depends on change.
+    /// </summary>
+    [JsonIgnore]
+    public string Description => Describe();
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private string Describe()
+    {
+        var action = !string.IsNullOrWhiteSpace(Keys) ? Keys
+                  : !string.IsNullOrWhiteSpace(Text) ? "“" + Text + "”"
+                  : !string.IsNullOrWhiteSpace(Run) ? Run
+                  : "(no action)";
+        return $"{Label}   [{action}]";
+    }
+
+    private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        if (name is nameof(Label) or nameof(Keys) or nameof(Text) or nameof(Run))
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Description)));
+    }
 }
 
 public static class ConfigStore

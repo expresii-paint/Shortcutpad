@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Controls.Templates;
 using Avalonia.Media;
@@ -22,6 +24,14 @@ public sealed class ButtonEditorWindow : Window
     private readonly PadConfig _draft;
     private readonly Action<PadConfig> _onSave;
     private readonly ListBox _list = new() { Width = 240 };
+
+    /// <summary>
+    /// The list's items. This is assigned to <see cref="ListBox.ItemsSource"/>
+    /// exactly once and mutated in place afterwards: reassigning ItemsSource
+    /// makes the item containers briefly hold a null item, which crashes the
+    /// item template.
+    /// </summary>
+    private readonly ObservableCollection<PadButton> _items = new();
     private readonly TextBlock _hint = new()
     {
         Text = "Pick a button, edit it on the right, then Save.",
@@ -69,16 +79,18 @@ public sealed class ButtonEditorWindow : Window
             _icon.Items.Add(name);
         _icon.Items.Add(AutoIcon);
 
-        _list.ItemTemplate = new FuncDataTemplate<PadButton>((b, _) => new TextBlock
+        _list.ItemTemplate = new FuncDataTemplate<PadButton>((b, _) =>
         {
-            Text = Describe(b),
-            Padding = new Thickness(6, 3, 6, 3),
+            var tb = new TextBlock { Padding = new Thickness(6, 3, 6, 3) };
+            if (b is null) { tb.Text = "(none)"; return tb; }
+            tb.Bind(TextBlock.TextProperty, new Binding("Description") { Source = b });
+            return tb;
         });
         _list.SelectionChanged += (_, _) =>
         {
             if (_inSelection) return;
             _inSelection = true;
-            try { LoadInto(_selected()); RefreshList(); }
+            try { LoadInto(_selected()); }
             finally { _inSelection = false; }
         };
 
@@ -95,8 +107,9 @@ public sealed class ButtonEditorWindow : Window
             r.Click += (_, _) => ApplyFromInputs();
 
         Content = BuildLayout();
-        RefreshList();
-        if (_draft.Buttons.Count > 0)
+        foreach (var b in _draft.Buttons) _items.Add(b);
+        _list.ItemsSource = _items;
+        if (_items.Count > 0)
             _list.SelectedIndex = 0;
     }
 
@@ -237,24 +250,6 @@ public sealed class ButtonEditorWindow : Window
 
     private PadButton? _selected() => _list.SelectedItem as PadButton;
 
-    private void RefreshList()
-    {
-        var sel = _selected();
-        _inSelection = true;
-        try
-        {
-            // Detach the selection before clearing: the selection model
-            // enumerates selected indices when the source changes.
-            _list.SelectedItem = null;
-            _list.ItemsSource = null;
-            _list.Items.Clear();
-            _list.ItemsSource = _draft.Buttons;
-            if (sel is not null)
-                _list.SelectedItem = sel;
-        }
-        finally { _inSelection = false; }
-    }
-
     private void LoadInto(PadButton? b)
     {
         _current = b;
@@ -330,7 +325,7 @@ public sealed class ButtonEditorWindow : Window
     {
         var b = new PadButton { Label = "New button", Keys = "ctrl+n" };
         _draft.Buttons.Add(b);
-        RefreshList();
+        _items.Add(b);
         _list.SelectedItem = b;
         _hint.Text = "Button added — press Save to keep it.";
     }
@@ -339,23 +334,31 @@ public sealed class ButtonEditorWindow : Window
     {
         var b = _selected();
         if (b is null) return;
-        var i = _draft.Buttons.IndexOf(b);
-        _draft.Buttons.RemoveAt(i);
-        RefreshList();
-        if (_draft.Buttons.Count > 0)
-            _list.SelectedIndex = Math.Min(i, _draft.Buttons.Count - 1);
+        var i = _items.IndexOf(b);
+        if (i < 0) return;
+        _items.RemoveAt(i);
+        var j = _draft.Buttons.IndexOf(b);
+        if (j >= 0) _draft.Buttons.RemoveAt(j);
+        if (_items.Count > 0)
+            _list.SelectedIndex = Math.Min(i, _items.Count - 1);
     }
 
     private void Move(int delta)
     {
         var b = _selected();
         if (b is null) return;
-        var i = _draft.Buttons.IndexOf(b);
-        var j = Math.Clamp(i + delta, 0, _draft.Buttons.Count - 1);
+        var i = _items.IndexOf(b);
+        var j = Math.Clamp(i + delta, 0, _items.Count - 1);
         if (i == j) return;
-        _draft.Buttons.RemoveAt(i);
+        // Remove + Insert rather than Move: the virtualizing panel re-realizes
+        // the containers for those, so the visible order follows the data.
+        // (ObservableCollection.Move raises a Move notification that the panel
+        // ignores, leaving the list looking unchanged.)
+        _items.RemoveAt(i);
+        _items.Insert(j, b);
+        var k = _draft.Buttons.IndexOf(b);
+        if (k >= 0) _draft.Buttons.RemoveAt(k);
         _draft.Buttons.Insert(j, b);
-        RefreshList();
         _list.SelectedItem = b;
     }
 
@@ -364,8 +367,9 @@ public sealed class ButtonEditorWindow : Window
         var fresh = ConfigStore.Load(_configPath);
         _draft.Buttons.Clear();
         _draft.Buttons.AddRange(fresh.Buttons);
-        RefreshList();
-        _list.SelectedIndex = _draft.Buttons.Count > 0 ? 0 : -1;
+        _items.Clear();
+        foreach (var b in fresh.Buttons) _items.Add(b);
+        _list.SelectedIndex = _items.Count > 0 ? 0 : -1;
         _hint.Text = "Reloaded from shortcut_pad.json.";
     }
 

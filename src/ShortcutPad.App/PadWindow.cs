@@ -19,6 +19,7 @@ public sealed class PadWindow : Window
 
     private Grid _grid = null!;
     private TextBlock _status = null!;
+    private Button _menuButton = null!;
     private TrayIcon? _tray;
     private FileSystemWatcher? _watcher;
     private DispatcherTimer? _fgTimer;
@@ -34,7 +35,7 @@ public sealed class PadWindow : Window
     private const int LabelNoIcon = 20;     // glanceable when there is no icon
     private const int SnapDistance = 24;
     private const double GridMargin = 12.0; // matches the grid's XAML margin
-    private const double StatusHeight = 20.0;
+    private const double StatusHeight = 40.0; // bottom row: status text + menu button
 
     private readonly record struct Placement(int Row, int Col, int SpanY, int SpanX);
 
@@ -47,7 +48,7 @@ public sealed class PadWindow : Window
         BuildUi();
         Title = "Shortcut Pad";
         ShowInTaskbar = true;
-        Topmost = true;
+        Topmost = false; // DIAGNOSTIC
         SizeToContent = SizeToContent.Manual;
         MinWidth = 150;
         MinHeight = 110;
@@ -78,13 +79,68 @@ public sealed class PadWindow : Window
             Text = "ready",
         };
 
+        // A visible, touch-sized entry point to the same options menu that the
+        // tray icon and the right-click open: on a touch screen neither of those
+        // is obvious or easy to hit.
+        _menuButton = new Button
+        {
+            Content = "☰ Menu",
+            FontSize = 13,
+            Padding = new Thickness(12, 8, 12, 8),
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = new Cursor(StandardCursorType.Hand),
+        };
+        ToolTip.SetTip(_menuButton, "Options, settings and the button editor");
+        _menuButton.Click += (_, _) => OpenOptions();
+
+        var statusRow = new DockPanel { Height = StatusHeight };
+        DockPanel.SetDock(_menuButton, Dock.Right);
+        statusRow.Children.Add(_menuButton);
+        statusRow.Children.Add(_status);
+
         var panel = new DockPanel();
-        DockPanel.SetDock(_status, Dock.Bottom);
-        panel.Children.Add(_status);
+        DockPanel.SetDock(statusRow, Dock.Bottom);
+        panel.Children.Add(statusRow);
         panel.Children.Add(_grid);
 
         Content = panel;
+
         ContextMenu = BuildContextMenu();
+    }
+
+    /// <summary>
+    /// Open the options window. A window rather than a popup menu: popups do not
+    /// render reliably for this always-on-top, transparent window, and large
+    /// buttons are easier to hit on a touch screen.
+    /// </summary>
+    private void OpenOptions()
+    {
+        var actions = new OptionsActions
+        {
+            ToggleVisible = ToggleVisible,
+            Reload = Reload,
+            EditConfig = () =>
+                Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true }),
+            OpenEditor = OpenButtonEditor,
+            SetAutoFlow = on =>
+            {
+                _cfg.AutoFlow = on;
+                ApplyFlow();
+                Status($"auto flow {(on ? "on" : "off")}");
+                QueueSave();
+            },
+            SetResizable = on =>
+            {
+                _cfg.Resizable = on;
+                CanResize = on && !IsDocked;
+                Status($"resizable {(on ? "on" : "off")}");
+                QueueSave();
+            },
+            SetOpacity = SetOpacity,
+            SetDock = SetDock,
+            Exit = Exit,
+        };
+        new OptionsWindow(_cfg, actions).Show(this);
     }
 
     private void BuildGrid()
@@ -181,7 +237,7 @@ public sealed class PadWindow : Window
         }
 
         Width = cols * ButtonWidth + 12;
-        Height = rows * ButtonHeight + 34;
+        Height = rows * ButtonHeight + GridMargin + StatusHeight;
         ApplyFlow();
     }
 

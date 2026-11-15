@@ -27,7 +27,15 @@ within a second.
 
 ## Features
 
-- **Always on top**, tray icon (double-click to hide/show), right-click menu.
+- **Always on top**, tray icon (click to hide/show), right-click menu.
+- **Touch-friendly options**: a **☰ Menu** button sits at the pad's bottom-right
+  and opens an **Options window** with large buttons (auto flow, resizable,
+  show/hide, reload, edit config, edit buttons, opacity, docking, exit). This
+  exists because right-click is awkward on a touch screen, and because Windows
+  11 keeps new tray icons in the hidden-icons overflow. Note that popup menus
+  (`ContextMenu`) do not render for this always-on-top, semi-transparent
+  window — `IsOpen` reports `true` while nothing appears — so the options are a
+  real window rather than a popup.
 - **Sends keystrokes to the app you were in** — it tracks the foreground window
   and hands focus back before sending, so your workflow is not interrupted.
 - **Touch-sized buttons**: the target is 100 x 62 DIPs per button (well above
@@ -113,8 +121,9 @@ Spans are packed left-to-right, top-to-bottom, so a wide button pushes the
 buttons after it to the next free space; the row count grows to fit. A span is
 clamped to the grid, and `spanX`/`spanY` below 1 are treated as 1.
 
-To edit them without touching JSON: right-click the pad → **Edit buttons…**
-(also in the tray menu, or `ShortcutPad --edit-buttons`). The editor lists the
+To edit them without touching JSON: tap **☰ Menu** on the pad → **Edit buttons…**
+(or right-click the pad, use the tray menu, or run
+`ShortcutPad --edit-buttons`). The editor lists the
 buttons on the left and edits the selected one on the right — label, which of
 keys/text/run it performs, background and foreground colour (with live
 swatches), icon, icon size, font size, corner radius and spans — with Move
@@ -298,6 +307,15 @@ The first editor build crashed after ~31 minutes: an unhandled
 `NullReferenceException` in the ListBox item template. The virtualizing panel
 builds a container for a stale index while the list is refreshed, so the item
 handed to the template can be null; `Describe` is now null-safe.
+
+The list now also keeps its items in an `ObservableCollection` that is assigned
+to `ItemsSource` once and mutated in place. Reassigning `ItemsSource` — even to
+a fresh list — makes the item containers briefly hold a null item, which is what
+actually triggered the crash when Add/Delete/Move rebuilt the list.
+`PadButton` implements `INotifyPropertyChanged` and exposes a `Description`
+property, so the list text follows edits live. Move up/down is done with
+Remove + Insert rather than `ObservableCollection.Move`, because the
+virtualizing panel ignores Move notifications and the list looked unchanged.
 
 The editor also exposed a latent bug: the app had **no theme at all** (no
 `App.axaml`), so every control ran on the unstyled default template. The pad
