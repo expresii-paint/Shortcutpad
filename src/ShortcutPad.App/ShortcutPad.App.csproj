@@ -1,8 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
+    <!-- A RID-less build on Windows (dotnet build / dotnet run / an IDE start
+         button) is given a console-subsystem apphost by the .NET SDK, which
+         pops a cmd window for what is a GUI app. Give those builds a real
+         Windows apphost so the exe behaves exactly like a published one. An
+         explicit -r on the command line still wins, so publishing is
+         unaffected, and the other platforms have no PE subsystem to worry
+         about. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(OS)' == 'Windows_NT'">win-x64</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ShortcutPad</AssemblyName>

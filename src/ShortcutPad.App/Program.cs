@@ -14,6 +14,10 @@ public static class Program
         //   ShortcutPad --type "hello from the command line"
         if (args.Length == 2 && (args[0] == "--send" || args[0] == "--type"))
         {
+            // A WinExe build has no console of its own. Attach to the caller's
+            // so the headless mode still reports errors when run from a shell.
+            if (OperatingSystem.IsWindows()) NativeMethods.AttachConsole(NativeMethods.AttachParent);
+
             var sender = PadPlatformSender.Create();
             try
             {
@@ -33,4 +37,13 @@ public static class Program
 
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>().UsePlatformDetect();
+
+    internal static class NativeMethods
+    {
+        /// <summary>AttachConsole(dwProcessId): pass -1 for the parent process.</summary>
+        public const uint AttachParent = 0xFFFFFFFF;
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        public static extern bool AttachConsole(uint dwProcessId);
+    }
 }

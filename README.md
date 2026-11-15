@@ -216,6 +216,14 @@ dotnet publish src/ShortcutPad.App/ShortcutPad.App.csproj -c Release \
 `NuGet.config` (repo root) points at that feed; `NuGet.config.macOS` is the
 normal nuget.org config for machines with network access.
 
+**No console window:** the app is a GUI (`WinExe`) build. A published exe is
+always subsystem `windows`, so double-clicking it opens no console. A plain
+`dotnet build` on Windows is given a *console-subsystem* apphost by the .NET
+SDK, which would pop a cmd window; the project therefore pins
+`RuntimeIdentifier=win-x64` for RID-less builds so `dotnet build`,
+`dotnet run` and an IDE start button all produce a GUI exe too. (macOS and
+Linux have no PE subsystem, so they are left alone.)
+
 ## Build (macOS)
 
 On the Mac:
