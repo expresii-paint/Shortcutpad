@@ -3,5 +3,11 @@
              x:Class="ShortcutPad.App">
     <Application.Styles>
         <FluentTheme />
+
+        <!-- Drop target while dragging a button row in the editor's list.
+             Kept in step with ButtonEditorWindow.TargetClass. -->
+        <Style Selector="ListBoxItem.reorder-target">
+            <Setter Property="Background" Value="#332D6CDF" />
+        </Style>
     </Application.Styles>
 </Application>

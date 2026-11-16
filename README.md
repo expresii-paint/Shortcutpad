@@ -54,14 +54,20 @@ within a second; the Options window shows the path it is using.
 - **Sends keystrokes to the app you were in** — it tracks the foreground window
   and hands focus back before sending, so your workflow is not interrupted.
 - **Touch-sized buttons**: the target is 100 x 62 DIPs per button (well above
-  the 44/48 pt minimums), with grid rows set to `Star`.
-- **Resizable**: drag any edge or corner. The window remembers its size. The
-  **maximize button is hidden** — a utility pad has no useful maximized state —
-  while the frame stays sizeable. Avalonia has no cross-platform
-  `CanMaximize`, so `IPadPlatform.SetMaximizeButton` does it natively: it drops
-  `WS_MAXIMIZEBOX` on Windows (leaving `WS_THICKFRAME`), hides the zoom button
-  on macOS and removes the two maximize actions from `_NET_WM_ALLOWED_ACTIONS`
-  on X11.
+  the 44/48 pt minimums), with grid rows set to `Star`. The target is yours to
+  set: **☰ Menu → Button size** offers Compact / Default / Large / XL plus width
+  and height boxes (32–400 DIPs) that apply as you type. Auto flow divides the
+  window by that target, so bigger buttons mean fewer, larger targets.
+- **Resizable**: drag any edge or corner. The window remembers its size. A
+  utility pad has no useful maximized state, so `IPadPlatform.SetMaximizeButton`
+  asks the platform to hide the maximize control (Avalonia has no cross-platform
+  `CanMaximize`): it drops `WS_MAXIMIZEBOX` on Windows (leaving `WS_THICKFRAME`),
+  hides the zoom button on macOS and removes the two maximize actions from
+  `_NET_WM_ALLOWED_ACTIONS` on X11. **Caveat, Windows 11**: the caption buttons
+  are drawn by the DWM there and ignore `WS_MAXIMIZEBOX`, so the style bit is
+  cleared but the glyph is still drawn and still works. Removing it properly
+  needs either a custom title bar or opting out of DWM non-client rendering
+  (which changes the caption's look).
 - **Auto flow** (`"autoFlow": true`, also a menu/tray toggle): the column and
   row counts are derived from the window's actual size, so the window stays
   freely resizable and the buttons keep the target size — whatever does not fit
@@ -84,9 +90,11 @@ within a second; the Options window shows the path it is using.
 - Buttons are hot-reloadable: edit the JSON and the pad rebuilds live.
 - **GUI editor**: right-click the pad (or the tray icon) → **Edit buttons…**, or
   run `ShortcutPad --edit-buttons`. Add, delete, reorder and edit every field —
-  label, action, colours, icon, sizes, corner radius and spans — then Save. The
-  editor works on a copy, so nothing changes until you press Save; Revert
-  re-reads the file. Editing the JSON by hand still works.
+  label, action, colours, icon, sizes, corner radius and spans — then Save. Rows
+  can be reordered by **dragging them** in the list (a drop target is
+  highlighted) as well as with the Move up / Move down buttons. The editor works
+  on a copy, so nothing changes until you press Save; Revert re-reads the file.
+  Editing the JSON by hand still works.
 - **Scriptable**: `ShortcutPad --send "ctrl+c"` / `ShortcutPad --type "text"`
   run headless (no window) — handy in scripts and for testing a platform's
   input path.

@@ -29,6 +29,10 @@ public sealed class PadWindow : Window
     private PixelPoint _lastPosition;
 
     private const int SnapDistance = 24;
+
+    /// <summary>Bounds for the user-editable target button size, in DIPs.</summary>
+    private const int MinButtonEdge = 32;
+    private const int MaxButtonEdge = 400;
     private const int IconSize = 30;
     private const int LabelWithIcon = 13;
     private const int LabelNoIcon = 20;     // glanceable when there is no icon
@@ -150,6 +154,7 @@ public sealed class PadWindow : Window
             },
             SetOpacity = SetOpacity,
             SetDock = SetDock,
+            SetButtonSize = (w, h) => ApplyButtonSize(w, h),
             Exit = Exit,
         };
         new OptionsWindow(_cfg, _configPath, actions).Show(this);
@@ -559,6 +564,24 @@ public sealed class PadWindow : Window
         _cfg.Opacity = opacity;
         Status($"opacity {opacity * 100:0}%");
         QueueSave();
+    }
+
+    /// <summary>
+    /// Applies a new target button size (DIPs) and reflows the grid. Auto flow
+    /// divides the window by this size, so a bigger target means fewer, larger
+    /// buttons - which is what makes the pad comfortable for finger touch.
+    /// </summary>
+    private void ApplyButtonSize(int width, int height)
+    {
+        var w = Math.Clamp(width, MinButtonEdge, MaxButtonEdge);
+        var h = Math.Clamp(height, MinButtonEdge, MaxButtonEdge);
+        if (w == _cfg.ButtonWidth && h == _cfg.ButtonHeight) return;
+
+        _cfg.ButtonWidth = w;
+        _cfg.ButtonHeight = h;
+        ApplyFlow();
+        QueueSave();
+        Status($"button size {w} x {h}");
     }
 
     private void SetDock(string side)

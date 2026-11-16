@@ -49,6 +49,9 @@ internal static class Program
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr FindWindow(string? lpClassName, string lpWindowName);
 
+    [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
@@ -76,6 +79,9 @@ internal static class Program
         var layoutOnly = false;
         var shotOnly = false;
         string? shotPath = null;
+        string? clickInTitle = null, clickInName = null;
+        string? capTitle = null;
+        var capClick = -1;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -90,6 +96,12 @@ internal static class Program
                 case "--click": clickPoint = (int.Parse(args[++i]), int.Parse(args[++i])); break;
                 case "--layout": layoutOnly = true; break;
                 case "--shot": shotPath = args[++i]; shotOnly = true; break;
+                case "--editor-drag": EditorDrag(int.Parse(args[++i]), int.Parse(args[++i])); return 0;
+                case "--editor-click": EditorClick(int.Parse(args[++i])); return 0;
+                case "--editor-hold": EditorHold(int.Parse(args[++i]), int.Parse(args[++i]), args[++i]); return 0;
+                case "--click-in": clickInTitle = args[++i]; clickInName = args[++i]; break;
+                case "--cap-title": capTitle = args[++i]; break;
+                case "--cap-click": capClick = int.Parse(args[++i]); break;
             }
         }
 
@@ -102,6 +114,31 @@ internal static class Program
         if (layoutOnly)
         {
             DumpLayout(padTitle);
+            return 0;
+        }
+
+        if (clickInTitle is not null)
+        {
+            ApplicationConfiguration.Initialize();
+            ClickByName(clickInTitle, clickInName!);
+            return 0;
+        }
+
+        if (capTitle is not null)
+        {
+            ApplicationConfiguration.Initialize();
+            CaptureTitle(capTitle, capTitle + ".png");
+            return 0;
+        }
+
+        if (capClick >= 0)
+        {
+            ApplicationConfiguration.Initialize();
+            ClickCaption("Shortcut Pad", capClick, out var before, out var beforeStyle);
+            Thread.Sleep(1200);
+            ClickCaption("Shortcut Pad", -1, out var after, out var afterStyle);
+            Console.WriteLine($"before rect={before} style=0x{beforeStyle:X8}");
+            Console.WriteLine($"after  rect={after} style=0x{afterStyle:X8}");
             return 0;
         }
 
@@ -369,12 +406,74 @@ internal static class Program
         }
     }
 
+    /// <summary>
+    /// Captures just the title bar of a window, using DPI-aware Win32 coordinates
+    /// (the probe is per-monitor aware, so these are real screen pixels).
+    /// </summary>
+    /// <summary>
+    /// Clicks a caption button (0 = minimize, 1 = maximize/restore, 2 = close) and
+    /// reports the window rect/style before and after, to prove whether the
+    /// maximize glyph is a real, working button.
+    /// </summary>
+    private static void ClickCaption(string title, int index, out string rect, out int style)
+    {
+        rect = "";
+        style = 0;
+        var hwnd = FindWindow(null, title);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine("WINDOW NOT FOUND " + title); return; }
+        if (!GetWindowRect(hwnd, out var wr) || !GetClientRect(hwnd, out var cr) ||
+            !ClientToScreen(hwnd, out var origin))
+        {
+            Console.WriteLine("RECT FAILED");
+            return;
+        }
+        rect = $"({wr.Left},{wr.Top})-({wr.Right},{wr.Bottom})";
+        style = GetWindowLong(hwnd, -16);
+        if (index < 0) return;
+
+        var titleHeight = origin.Y - wr.Top;
+        // Windows 11 caption buttons are 46 DIPs square, three of them at the
+        // right hand end of the title bar.
+        var bw = Math.Max(20, (int)(46 * GetDpiForWindow(hwnd) / 96.0));
+        var x = origin.X + cr.Right - (int)((2 - index) * bw) - bw / 2;
+        var y = wr.Top + titleHeight / 2;
+        Console.WriteLine($"clicking caption {index} at {x},{y}");
+        Click(x, y);
+    }
+
+    private static void CaptureTitle(string title, string path)
+    {
+        var hwnd = FindWindow(null, title);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine("WINDOW NOT FOUND " + title); return; }
+        if (!GetWindowRect(hwnd, out var wr) || !GetClientRect(hwnd, out var cr) ||
+            !ClientToScreen(hwnd, out var origin))
+        {
+            Console.WriteLine("RECT FAILED");
+            return;
+        }
+        var titleHeight = origin.Y - wr.Top;
+        if (titleHeight <= 0) { Console.WriteLine("NO TITLE BAR"); return; }
+
+        var width = Math.Min(320, cr.Right);
+        var bmp = new Bitmap(width, titleHeight);
+        using (var g = Graphics.FromImage(bmp))
+            g.CopyFromScreen(origin.X + cr.Right - width, wr.Top, 0, 0, new Size(width, titleHeight));
+        bmp.Save(path);
+        Console.WriteLine($"TITLEBAR {path} {width}x{titleHeight} dpi={GetDpiForWindow(hwnd)}");
+    }
+
     private static void ClickByName(string padTitle, string buttonName)
     {
         var root = System.Windows.Automation.AutomationElement.RootElement;
+        // Owned windows (the Options dialog is shown with Show(owner)) are not
+        // top-level UIA children, so fall back to a whole-tree search.
         var pad = root.FindFirst(System.Windows.Automation.TreeScope.Children,
             new System.Windows.Automation.PropertyCondition(
                 System.Windows.Automation.AutomationElement.NameProperty, padTitle));
+        if (pad is null)
+            pad = root.FindFirst(System.Windows.Automation.TreeScope.Descendants,
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.NameProperty, padTitle));
         if (pad is null)
         {
             Console.WriteLine($"PAD NOT FOUND title='{padTitle}'");
@@ -421,6 +520,225 @@ internal static class Program
         Console.WriteLine($"AT POINT: {DescribeWindowAt(x, y)}");
         Click(x, y);
         Console.WriteLine($"CLICKED '{buttonName}' at {x},{y}");
+    }
+
+    /// <summary>
+    /// Drags row <paramref name="from"/> onto row <paramref name="to"/> in the
+    /// "Edit buttons" dialog, then clicks Save, so the config file on disk shows
+    /// the resulting order.
+    /// </summary>
+    private static void EditorDrag(int from, int to)
+    {
+        const string title = "Edit buttons";
+        var hwnd = FindWindow(null, title);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine("EDITOR NOT FOUND"); return; }
+        ForceForeground(hwnd);
+        Thread.Sleep(500);
+
+        var editor = System.Windows.Automation.AutomationElement.RootElement.FindFirst(
+            System.Windows.Automation.TreeScope.Children,
+            new System.Windows.Automation.PropertyCondition(
+                System.Windows.Automation.AutomationElement.NameProperty, title));
+        if (editor is null) { Console.WriteLine("EDITOR UIA NOT FOUND"); return; }
+
+        var rows = editor.FindAll(System.Windows.Automation.TreeScope.Descendants,
+            new System.Windows.Automation.PropertyCondition(
+                System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                System.Windows.Automation.ControlType.ListItem));
+        Console.WriteLine($"ROWS={rows.Count}");
+        if (rows.Count == 0) return;
+
+        var er = editor.Current.BoundingRectangle;
+        if (!GetClientRect(hwnd, out var client) || !ClientToScreen(hwnd, out var origin))
+        {
+            Console.WriteLine("CLIENT RECT FAILED");
+            return;
+        }
+
+        var centres = new List<(string name, int x, int y)>();
+        foreach (System.Windows.Automation.AutomationElement r in rows)
+        {
+            var b = r.Current.BoundingRectangle;
+            var fx = (b.X + b.Width / 2 - er.X) / er.Width;
+            var fy = (b.Y + b.Height / 2 - er.Y) / er.Height;
+            centres.Add((r.Current.Name,
+                (int)(origin.X + (client.Right - client.Left) * fx),
+                (int)(origin.Y + (client.Bottom - client.Top) * fy)));
+        }
+        for (var i = 0; i < centres.Count; i++)
+            Console.WriteLine($"ROW {i,2} y={centres[i].y,4} name='{centres[i].name}'");
+
+        from = Math.Clamp(from, 0, centres.Count - 1);
+        to = Math.Clamp(to, 0, centres.Count - 1);
+        var (name, x1, y1) = centres[from];
+        var (_, _, y2) = centres[to];
+        Console.WriteLine($"DRAG row {from} ('{name}') -> row {to}  from y={y1} to y={y2}");
+
+        DragMouse(x1, y1, x1, y2);
+        Thread.Sleep(600);
+
+        // Save writes the draft (with its new order) to shortcut_pad.json.
+        var save = editor.FindFirst(System.Windows.Automation.TreeScope.Descendants,
+            new System.Windows.Automation.AndCondition(
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                    System.Windows.Automation.ControlType.Button),
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.NameProperty, "Save")));
+        if (save is null) { Console.WriteLine("SAVE NOT FOUND"); return; }
+        var sb = save.Current.BoundingRectangle;
+        var sfx = (sb.X + sb.Width / 2 - er.X) / er.Width;
+        var sfy = (sb.Y + sb.Height / 2 - er.Y) / er.Height;
+        Click((int)(origin.X + (client.Right - client.Left) * sfx),
+              (int)(origin.Y + (client.Bottom - client.Top) * sfy));
+        Console.WriteLine("SAVE CLICKED");
+    }
+
+    /// <summary>
+    /// Clicks a row (no drag) and saves, to prove a plain click still only
+    /// selects and never reorders.
+    /// </summary>
+    private static void EditorClick(int index)
+    {
+        var (editor, er, origin, client, centres) = EditorRows();
+        if (centres is null || centres.Count == 0) return;
+        index = Math.Clamp(index, 0, centres.Count - 1);
+        Click(centres[index].x, centres[index].y);
+        Thread.Sleep(400);
+        ClickSave(editor, er, origin, client);
+        Console.WriteLine("ROW CLICKED + SAVED");
+    }
+
+    /// <summary>
+    /// Presses a row, drags it to another and holds there while a screenshot is
+    /// taken, so the drop-target highlight can be seen.
+    /// </summary>
+    private static void EditorHold(int from, int to, string shotPath)
+    {
+        var (editor, er, origin, client, centres) = EditorRows();
+        if (centres is null || centres.Count == 0) return;
+        from = Math.Clamp(from, 0, centres.Count - 1);
+        to = Math.Clamp(to, 0, centres.Count - 1);
+
+        var (x1, y1) = (centres[from].x, centres[from].y);
+        var (_, y2) = (centres[to].x, centres[to].y);
+        var size = Marshal.SizeOf<INPUT>();
+        SendInput(1, new[] { MouseInput(x1, y1, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+        Thread.Sleep(150);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTDOWN) }, size);
+        Thread.Sleep(150);
+        for (var i = 1; i <= 15; i++)
+        {
+            var y = y1 + (y2 - y1) * i / 15;
+            SendInput(1, new[] { MouseInput(x1, y, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+            Thread.Sleep(45);
+        }
+        Thread.Sleep(500);
+        Capture("Edit buttons", shotPath);
+        Thread.Sleep(1500);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTUP) }, size);
+        Console.WriteLine("HELD + SHOT + RELEASED");
+    }
+
+    private static (System.Windows.Automation.AutomationElement editor, System.Windows.Rect er,
+        POINT origin, RECT client, List<(string name, int x, int y)>? centres) EditorRows()
+    {
+        const string title = "Edit buttons";
+        var hwnd = FindWindow(null, title);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine("EDITOR NOT FOUND"); return default; }
+        ForceForeground(hwnd);
+        Thread.Sleep(500);
+
+        var editor = System.Windows.Automation.AutomationElement.RootElement.FindFirst(
+            System.Windows.Automation.TreeScope.Children,
+            new System.Windows.Automation.PropertyCondition(
+                System.Windows.Automation.AutomationElement.NameProperty, title));
+        if (editor is null) { Console.WriteLine("EDITOR UIA NOT FOUND"); return default; }
+
+        var rows = editor.FindAll(System.Windows.Automation.TreeScope.Descendants,
+            new System.Windows.Automation.PropertyCondition(
+                System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                System.Windows.Automation.ControlType.ListItem));
+        Console.WriteLine($"ROWS={rows.Count}");
+        if (rows.Count == 0) return (editor, default, default, default, null);
+
+        var er = editor.Current.BoundingRectangle;
+        RECT client = default;
+        POINT origin = default;
+        if (!GetClientRect(hwnd, out client) || !ClientToScreen(hwnd, out origin))
+        {
+            Console.WriteLine("CLIENT RECT FAILED");
+            return (editor, er, origin, client, null);
+        }
+
+        var centres = new List<(string name, int x, int y)>();
+        foreach (System.Windows.Automation.AutomationElement r in rows)
+        {
+            var b = r.Current.BoundingRectangle;
+            var fx = (b.X + b.Width / 2 - er.X) / er.Width;
+            var fy = (b.Y + b.Height / 2 - er.Y) / er.Height;
+            centres.Add((r.Current.Name,
+                (int)(origin.X + (client.Right - client.Left) * fx),
+                (int)(origin.Y + (client.Bottom - client.Top) * fy)));
+        }
+        return (editor, er, origin, client, centres);
+    }
+
+    private static void ClickSave(System.Windows.Automation.AutomationElement editor,
+        System.Windows.Rect er, POINT origin, RECT client)
+    {
+        var save = editor.FindFirst(System.Windows.Automation.TreeScope.Descendants,
+            new System.Windows.Automation.AndCondition(
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.ControlTypeProperty,
+                    System.Windows.Automation.ControlType.Button),
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.NameProperty, "Save")));
+        if (save is null) { Console.WriteLine("SAVE NOT FOUND"); return; }
+        var sb = save.Current.BoundingRectangle;
+        var sfx = (sb.X + sb.Width / 2 - er.X) / er.Width;
+        var sfy = (sb.Y + sb.Height / 2 - er.Y) / er.Height;
+        Click((int)(origin.X + (client.Right - client.Left) * sfx),
+              (int)(origin.Y + (client.Bottom - client.Top) * sfy));
+        Console.WriteLine("SAVE CLICKED");
+    }
+
+    private static void DragMouse(int x1, int y1, int x2, int y2)
+    {
+        var size = Marshal.SizeOf<INPUT>();
+        SendInput(1, new[] { MouseInput(x1, y1, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+        Thread.Sleep(150);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTDOWN) }, size);
+        Thread.Sleep(150);
+        for (var i = 1; i <= 15; i++)
+        {
+            var x = x1 + (x2 - x1) * i / 15;
+            var y = y1 + (y2 - y1) * i / 15;
+            SendInput(1, new[] { MouseInput(x, y, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+            Thread.Sleep(45);
+        }
+        Thread.Sleep(200);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTUP) }, size);
+        Thread.Sleep(250);
+    }
+
+    private static INPUT MouseInput(int x, int y, uint flags)
+    {
+        var w = Screen.PrimaryScreen.Bounds.Width;
+        var h = Screen.PrimaryScreen.Bounds.Height;
+        return new INPUT
+        {
+            type = 0,
+            u = new INPUTUNION
+            {
+                mi = new MOUSEINPUT
+                {
+                    dx = (int)((long)x * 65535 / (w - 1)),
+                    dy = (int)((long)y * 65535 / (h - 1)),
+                    dwFlags = flags,
+                },
+            },
+        };
     }
 
     private static void Click(int x, int y)

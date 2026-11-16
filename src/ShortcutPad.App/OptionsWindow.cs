@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace ShortcutPad;
 
@@ -21,6 +22,12 @@ public sealed class OptionsActions
     public Action<bool> SetResizable { get; set; } = _ => { };
     public Action<double> SetOpacity { get; set; } = _ => { };
     public Action<string> SetDock { get; set; } = _ => { };
+
+    /// <summary>
+    /// Target button size in DIPs. Auto flow derives the column and row counts
+    /// from it, so it is how a user sizes the pad for their own fingers.
+    /// </summary>
+    public Action<int, int> SetButtonSize { get; set; } = (_, _) => { };
     public Action Exit { get; set; } = () => { };
 }
 
@@ -34,8 +41,16 @@ public sealed class OptionsWindow : Window
     private const double RowHeight = 52.0;
     private const double SmallButtonWidth = 92.0;
 
+    /// <summary>Bounds for the editable target button size, in DIPs.</summary>
+    private const int MinEdge = 32;
+    private const int MaxEdge = 400;
+
     private readonly PadConfig _cfg;
     private readonly OptionsActions _actions;
+    private TextBox _width = null!;
+    private TextBox _height = null!;
+    private DispatcherTimer? _sizeTimer;
+    private bool _inSizeSync;
 
     public OptionsWindow(PadConfig cfg, string configPath, OptionsActions actions)
     {
@@ -81,6 +96,30 @@ public sealed class OptionsWindow : Window
             MakeButton("Right", () => _actions.SetDock("right")),
             MakeButton("Undock", () => _actions.SetDock("none")),
         }));
+
+        stack.Children.Add(Caption("Button size (DIPs) — what fits your finger"));
+        stack.Children.Add(Row(new[]
+        {
+            MakeButton("Compact", () => ApplySize(70, 48)),
+            MakeButton("Default", () => ApplySize(100, 62)),
+            MakeButton("Large", () => ApplySize(124, 80)),
+            MakeButton("XL", () => ApplySize(156, 100)),
+        }));
+
+        _width = MakeSizeBox(cfg.ButtonWidth);
+        _height = MakeSizeBox(cfg.ButtonHeight);
+        foreach (var box in new[] { _width, _height })
+        {
+            box.TextChanged += (_, _) => { if (!_inSizeSync) ArmSizeTimer(); };
+            box.KeyDown += (_, e) =>
+            {
+                if (e.Key is Key.Enter or Key.Return) ApplySizeFromBoxes();
+            };
+            box.LostFocus += (_, _) => ApplySizeFromBoxes();
+        }
+        stack.Children.Add(Row2(_width, _height));
+
+        stack.Children.Add(Caption("DIPs. Applies as you type; bigger buttons are easier to hit."));
 
         stack.Children.Add(Separator());
         stack.Children.Add(MakeButton("Exit", _actions.Exit));
@@ -147,6 +186,64 @@ public sealed class OptionsWindow : Window
             panel.Children.Add(c);
         }
         return panel;
+    }
+
+    /// <summary>Width x height editors for the target button size.</summary>
+    private Control Row2(TextBox width, TextBox height)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        panel.Children.Add(width);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "×",
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 15,
+        });
+        panel.Children.Add(height);
+        return panel;
+    }
+
+    private static TextBox MakeSizeBox(int value) => new()
+    {
+        Text = value.ToString(),
+        Width = 92,
+        HorizontalContentAlignment = HorizontalAlignment.Left,
+    };
+
+    /// <summary>
+    /// Short debounce so typing a size applies once, after the last keystroke,
+    /// instead of reflowing the pad for every intermediate value.
+    /// </summary>
+    private void ArmSizeTimer()
+    {
+        if (_sizeTimer is null)
+        {
+            _sizeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            _sizeTimer.Tick += (_, _) => { _sizeTimer!.Stop(); ApplySizeFromBoxes(); };
+        }
+        _sizeTimer.Stop();
+        _sizeTimer.Start();
+    }
+
+    private void ApplySizeFromBoxes()
+    {
+        _sizeTimer?.Stop();
+        if (!int.TryParse(_width.Text, out var w)) return;
+        if (!int.TryParse(_height.Text, out var h)) return;
+        ApplySize(w, h);
+    }
+
+    private void ApplySize(int width, int height)
+    {
+        var w = Math.Clamp(width, MinEdge, MaxEdge);
+        var h = Math.Clamp(height, MinEdge, MaxEdge);
+
+        _inSizeSync = true;
+        _width.Text = w.ToString();
+        _height.Text = h.ToString();
+        _inSizeSync = false;
+
+        _actions.SetButtonSize(w, h);
     }
 
     private static Control Caption(string text) => new TextBlock

@@ -5,9 +5,12 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Controls.Templates;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace ShortcutPad;
 
@@ -61,6 +64,18 @@ public sealed class ButtonEditorWindow : Window
     private bool _inSelection;
     private PadButton? _current;
 
+    // Drag-to-reorder state. A press only becomes a drag after the pointer has
+    // travelled <see cref="DragThreshold"/> pixels, so a plain click still just
+    // selects the row.
+    private const string DragFormat = "application/x-shortcutpad-button";
+    private const string TargetClass = "reorder-target";
+    private const double DragThreshold = 4.0;
+
+    private PadButton? _dragItem;
+    private Point _dragOrigin;
+    private bool _dragArmed;
+    private ListBoxItem? _targetRow;
+
     public ButtonEditorWindow(PadConfig draft, string configPath, Action<PadConfig> onSave)
     {
         _draft = draft;
@@ -113,7 +128,161 @@ public sealed class ButtonEditorWindow : Window
         _list.ItemsSource = _items;
         if (_items.Count > 0)
             _list.SelectedIndex = 0;
+
+        InitReorder();
     }
+
+    // ------------------------------------------------------------ drag reorder
+
+    /// <summary>
+    /// Lets a row be dragged to a new position. Dragging is done with
+    /// <see cref="Avalonia.Input.DragDrop"/> rather than raw pointer events so
+    /// the platform handles pointer capture and the drag session; the list is
+    /// both the source and the target.
+    /// </summary>
+    private void InitReorder()
+    {
+        DragDrop.SetAllowDrop(_list, true);
+        _list.AddHandler<DragEventArgs>(DragDrop.DragOverEvent, OnDragOver, RoutingStrategies.Bubble);
+        _list.AddHandler<DragEventArgs>(DragDrop.DropEvent, OnDrop, RoutingStrategies.Bubble);
+        _list.AddHandler<DragEventArgs>(DragDrop.DragLeaveEvent, OnDragLeave, RoutingStrategies.Bubble);
+
+        // Tunnel phase, so a press is recorded before the row selects itself.
+        _list.AddHandler<PointerPressedEventArgs>(PointerPressedEvent, OnListPressed, RoutingStrategies.Tunnel);
+        _list.AddHandler<PointerEventArgs>(PointerMovedEvent, OnListMoved, RoutingStrategies.Tunnel);
+        _list.AddHandler<PointerReleasedEventArgs>(PointerReleasedEvent, OnListReleased, RoutingStrategies.Tunnel);
+    }
+
+    private void OnListPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(_list).Properties.IsLeftButtonPressed) return;
+        var item = ItemFrom(e.Source);
+        if (item is null) return;
+        _dragItem = item;
+        _dragOrigin = e.GetPosition(_list);
+        _dragArmed = true;
+    }
+
+    private void OnListReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        // A press that never became a drag is just a selection.
+        _dragArmed = false;
+        _dragItem = null;
+    }
+
+    private async void OnListMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_dragArmed || _dragItem is null) return;
+        if (!e.GetCurrentPoint(_list).Properties.IsLeftButtonPressed) return;
+        if (Math.Abs(e.GetPosition(_list).Y - _dragOrigin.Y) < DragThreshold) return;
+
+        _dragArmed = false;
+        var item = _dragItem;
+        _dragItem = null;
+
+        var data = new DataObject();
+        data.Set(DragFormat, item);
+        await DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
+        ClearTarget();
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.Data.Get(DragFormat) is not PadButton)
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        ShowTarget(TargetIndex(e.GetPosition(_list).Y));
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (e.Data.Get(DragFormat) is not PadButton item)
+        {
+            e.DragEffects = DragDropEffects.None;
+            return;
+        }
+
+        var to = TargetIndex(e.GetPosition(_list).Y);
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+        ClearTarget();
+        Reorder(item, to);
+    }
+
+    private void OnDragLeave(object? sender, DragEventArgs e) => ClearTarget();
+
+    /// <summary>
+    /// Moves <paramref name="item"/> to <paramref name="to"/>, which is an
+    /// insertion index in the current order (0..Count). Both the list and the
+    /// draft config are kept in step, exactly as Move up/down does.
+    /// </summary>
+    private void Reorder(PadButton item, int to)
+    {
+        var from = _items.IndexOf(item);
+        if (from < 0) return;
+
+        _items.RemoveAt(from);
+        _items.Insert(Math.Clamp(to, 0, _items.Count), item);
+
+        var i = _draft.Buttons.IndexOf(item);
+        if (i >= 0)
+        {
+            _draft.Buttons.RemoveAt(i);
+            _draft.Buttons.Insert(Math.Clamp(to, 0, _draft.Buttons.Count), item);
+        }
+
+        _list.SelectedItem = item;
+        _hint.Text = "Reordered — press Save to keep the new order.";
+    }
+
+    /// <summary>Index of the gap the pointer is over: how many rows are above it.</summary>
+    private int TargetIndex(double y)
+    {
+        var index = 0;
+        foreach (var row in Rows())
+        {
+            if (y > RowCentre(row)) index++;
+            else break;
+        }
+        return index;
+    }
+
+    private void ShowTarget(int index)
+    {
+        var rows = Rows();
+        var row = index >= 0 && index < rows.Count ? rows[index] : null;
+        if (ReferenceEquals(row, _targetRow)) return;
+
+        ClearTarget();
+        _targetRow = row;
+        _targetRow?.Classes.Add(TargetClass);
+    }
+
+    private void ClearTarget()
+    {
+        _targetRow?.Classes.Remove(TargetClass);
+        _targetRow = null;
+    }
+
+    /// <summary>
+    /// The realized rows, top to bottom. Virtualization means only the visible
+    /// ones exist, which is fine: the row under the pointer is always realized.
+    /// </summary>
+    private List<ListBoxItem> Rows() =>
+        _list.GetVisualDescendants().OfType<ListBoxItem>()
+            .OrderBy(RowCentre)
+            .ToList();
+
+    private double RowCentre(ListBoxItem row) =>
+        row.TranslatePoint(new Point(0, row.Bounds.Height / 2), _list)?.Y ?? 0;
+
+    private static PadButton? ItemFrom(object? source) =>
+        source is Control control ? control.DataContext as PadButton : null;
 
     // ------------------------------------------------------------ UI
 
