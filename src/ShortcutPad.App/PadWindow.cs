@@ -4,6 +4,7 @@ using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -262,13 +263,134 @@ public sealed class PadWindow : Window
             ToolTip.SetTip(btn, Describe(b));
 
             var index = i;
-            btn.Click += (_, _) => Execute(_cfg.Buttons[index]);
+            btn.Click += (_, _) => { if (!_suppressClick) Execute(_cfg.Buttons[index]); };
+            btn.AddHandler<PointerPressedEventArgs>(PointerPressedEvent, (_, e) =>
+            {
+                if (!e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed) return;
+                _dragIndex = index;
+                _dragStart = e.GetPosition(btn);
+                _dragActive = false;
+                _dragTarget = -1;
+                e.Pointer.Capture(btn);
+            }, RoutingStrategies.Bubble, handledEventsToo: true);
+            btn.AddHandler<PointerEventArgs>(PointerMovedEvent, (_, e) =>
+            {
+                if (_dragIndex != index) return;
+                if (!e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed) return;
+                if (!_dragActive)
+                {
+                    // A click and a drag share the same press: only once the
+                    // pointer has travelled does this become a reorder.
+                    var offset = e.GetPosition(btn) - _dragStart;
+                    if (Math.Sqrt(offset.X * offset.X + offset.Y * offset.Y) < DragThreshold) return;
+                    _dragActive = true;
+                    _suppressClick = true;
+                    btn.Opacity = 0.35;
+                }
+                UpdateDragTarget(e);
+            }, RoutingStrategies.Bubble, handledEventsToo: true);
+            btn.AddHandler<PointerReleasedEventArgs>(PointerReleasedEvent, (_, e) =>
+            {
+                if (_dragIndex != index) return;
+                e.Pointer.Capture(null);
+                if (_dragActive) EndDrag(e);
+                _dragIndex = -1;
+                _dragActive = false;
+            }, RoutingStrategies.Bubble, handledEventsToo: true);
+            btn.AddHandler<PointerCaptureLostEventArgs>(PointerCaptureLostEvent, (_, _) =>
+            {
+                if (_dragIndex != index) return;
+                CancelDrag();
+                _dragIndex = -1;
+                _dragActive = false;
+            }, RoutingStrategies.Bubble, handledEventsToo: true);
             _grid.Children.Add(btn);
             Grid.SetRow(btn, i / cols);
             Grid.SetColumn(btn, i % cols);
         }
 
         ApplyFlow();
+    }
+
+    // ------------------------------------------------------------ drag to reorder
+
+    private int _dragIndex = -1;
+    private Point _dragStart;
+    private bool _dragActive;
+    private bool _suppressClick;
+    private int _dragTarget = -1;
+    private IBrush? _targetOriginalBrush;
+    private const double DragThreshold = 6.0;
+    private static readonly IBrush TargetBrush =
+        new SolidColorBrush(Color.FromRgb(0x2D, 0x6C, 0xDF));
+
+    /// <summary>Index of the visible button under a point in grid coordinates.</summary>
+    private int SlotAt(Point p)
+    {
+        for (var i = 0; i < _grid.Children.Count; i++)
+        {
+            if (_grid.Children[i] is not Visual v || !v.IsVisible) continue;
+            if (v.Bounds.Contains(p)) return i;
+        }
+        return -1;
+    }
+
+    private void UpdateDragTarget(PointerEventArgs e)
+    {
+        var slot = SlotAt(e.GetPosition(_grid));
+        if (slot < 0 || slot == _dragTarget) return;
+
+        RestoreTarget();
+        if (_grid.Children[slot] is not Button target) return;
+        _dragTarget = slot;
+        _targetOriginalBrush = target.Background;
+        target.Background = TargetBrush;
+    }
+
+    private void RestoreTarget()
+    {
+        if (_dragTarget >= 0 && _dragTarget < _grid.Children.Count
+            && _grid.Children[_dragTarget] is Button target)
+            target.Background = _targetOriginalBrush;
+        _targetOriginalBrush = null;
+        _dragTarget = -1;
+    }
+
+    private void EndDrag(PointerEventArgs e)
+    {
+        var from = _dragIndex;
+        var target = SlotAt(e.GetPosition(_grid));
+
+        if (from >= 0 && from < _grid.Children.Count)
+            _grid.Children[from].Opacity = 1.0;
+        RestoreTarget();
+
+        if (target >= 0 && target != from) MoveButton(from, target);
+
+        // The Button still raises its Click for this release; swallow that one.
+        Dispatcher.UIThread.Post(() => _suppressClick = false, DispatcherPriority.Input);
+    }
+
+    private void CancelDrag()
+    {
+        if (_dragIndex >= 0 && _dragIndex < _grid.Children.Count)
+            _grid.Children[_dragIndex].Opacity = 1.0;
+        RestoreTarget();
+        _suppressClick = false;
+    }
+
+    /// <summary>Moves a button to another slot and persists the new order.</summary>
+    private void MoveButton(int from, int to)
+    {
+        if (from < 0 || to < 0 || from >= _cfg.Buttons.Count || to >= _cfg.Buttons.Count || from == to)
+            return;
+
+        var item = _cfg.Buttons[from];
+        _cfg.Buttons.RemoveAt(from);
+        _cfg.Buttons.Insert(to, item);
+        BuildGrid();
+        SaveConfig();
+        Status($"moved {item.Label} to slot {to + 1}");
     }
 
     /// <summary>

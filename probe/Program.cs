@@ -86,6 +86,8 @@ internal static class Program
         var dragDy = 0;
         var resizeDx = 0;
         var resizeDy = 0;
+        var reorderFrom = -1;
+        var reorderTo = -1;
         var whatX = -1;
         var whatY = -1;
         var pressAt = false;
@@ -111,6 +113,7 @@ internal static class Program
                 case "--cap-click": capClick = int.Parse(args[++i]); break;
                 case "--drag-bar": dragDx = int.Parse(args[++i]); dragDy = int.Parse(args[++i]); break;
                 case "--resize": resizeDx = int.Parse(args[++i]); resizeDy = int.Parse(args[++i]); break;
+                case "--reorder": reorderFrom = int.Parse(args[++i]); reorderTo = int.Parse(args[++i]); break;
                 case "--whatat": whatX = int.Parse(args[++i]); whatY = int.Parse(args[++i]); break;
                 case "--press-at": whatX = int.Parse(args[++i]); whatY = int.Parse(args[++i]); pressAt = true; break;
             }
@@ -147,6 +150,13 @@ internal static class Program
             ApplicationConfiguration.Initialize();
             if (pressAt) { Console.WriteLine($"press at {whatX},{whatY}"); Click(whatX, whatY); }
             else Console.WriteLine($"AT {whatX},{whatY}: {DescribeWindowAt(whatX, whatY)}");
+            return 0;
+        }
+
+        if (reorderFrom >= 0)
+        {
+            ApplicationConfiguration.Initialize();
+            ReorderButtons("Shortcut Pad", reorderFrom, reorderTo);
             return 0;
         }
 
@@ -452,6 +462,74 @@ internal static class Program
     /// Drags the pad's top bar (its stand-in title bar) and reports the window
     /// rect before and after, to prove the bar moves the window.
     /// </summary>
+    /// <summary>
+    /// Drags pad button <paramref name="from"/> onto button <paramref name="to"/>,
+    /// i.e. the pad's own drag-to-reorder gesture.
+    /// </summary>
+    private static void ReorderButtons(string title, int from, int to)
+    {
+        var root = System.Windows.Automation.AutomationElement.RootElement;
+        var pad = root.FindFirst(System.Windows.Automation.TreeScope.Children,
+            new System.Windows.Automation.PropertyCondition(
+                System.Windows.Automation.AutomationElement.NameProperty, title));
+        if (pad is null)
+            pad = root.FindFirst(System.Windows.Automation.TreeScope.Descendants,
+                new System.Windows.Automation.PropertyCondition(
+                    System.Windows.Automation.AutomationElement.NameProperty, title));
+        if (pad is null) { Console.WriteLine("PAD NOT FOUND"); return; }
+
+        var rect = pad.Current.BoundingRectangle;
+        var btnCond = new System.Windows.Automation.PropertyCondition(
+            System.Windows.Automation.AutomationElement.ControlTypeProperty,
+            System.Windows.Automation.ControlType.Button);
+        var buttons = new System.Collections.Generic.List<System.Windows.Automation.AutomationElement>();
+        foreach (var elem in pad.FindAll(System.Windows.Automation.TreeScope.Descendants, btnCond))
+        {
+            var e = (System.Windows.Automation.AutomationElement)elem;
+            var name = e.Current.Name ?? "";
+            if (name.Length == 1 && name[0] == '☰') continue;   // the menu button
+            if (!e.Current.IsOffscreen) buttons.Add(e);
+        }
+        if (from >= buttons.Count || to >= buttons.Count)
+        {
+            Console.WriteLine($"BUTTONS {buttons.Count} - cannot reorder {from} -> {to}");
+            return;
+        }
+
+        var hwnd = FindWindow(null, title);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine("PAD HWND NOT FOUND"); return; }
+        if (!GetClientRect(hwnd, out var client) || !ClientToScreen(hwnd, out var origin))
+        { Console.WriteLine("CLIENT RECT FAILED"); return; }
+
+        Point Centre(System.Windows.Automation.AutomationElement el)
+        {
+            var r = el.Current.BoundingRectangle;
+            var fx = (r.X + r.Width / 2 - rect.X) / rect.Width;
+            var fy = (r.Y + r.Height / 2 - rect.Y) / rect.Height;
+            return new Point(origin.X + (int)(fx * client.Right), origin.Y + (int)(fy * client.Bottom));
+        }
+
+        var a = Centre(buttons[from]);
+        var b = Centre(buttons[to]);
+        Console.WriteLine($"reorder {from} -> {to}: ({a.X},{a.Y}) -> ({b.X},{b.Y}) of {buttons.Count} buttons");
+
+        var size = Marshal.SizeOf<INPUT>();
+        SendInput(1, new[] { MouseInput(a.X, a.Y, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+        Thread.Sleep(150);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTDOWN) }, size);
+        Thread.Sleep(150);
+        for (var i = 1; i <= 15; i++)
+        {
+            SendInput(1, new[] { MouseInput(a.X + (b.X - a.X) * i / 15, a.Y + (b.Y - a.Y) * i / 15,
+                MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+            Thread.Sleep(45);
+        }
+        Thread.Sleep(250);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTUP) }, size);
+        Thread.Sleep(800);
+        Console.WriteLine("drag done");
+    }
+
     /// <summary>Drags the pad's bottom-right corner, i.e. a real user resize.</summary>
     private static void ResizeWindow(string title, int dx, int dy)
     {
