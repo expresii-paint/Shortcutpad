@@ -439,7 +439,7 @@ internal static class Program
     /// maximize glyph is a real, working button.
     /// </summary>
     /// <summary>
-    /// Drags the pad's bottom bar (its stand-in title bar) and reports the window
+    /// Drags the pad's top bar (its stand-in title bar) and reports the window
     /// rect before and after, to prove the bar moves the window.
     /// </summary>
     private static void DragBottomBar(string title, int dx, int dy)
@@ -451,7 +451,7 @@ internal static class Program
         ClientToScreen(hwnd, out var origin);
 
         var x = origin.X + cr.Right / 2;
-        var y = origin.Y + cr.Bottom - 20;      // the status bar
+        var y = origin.Y + 20;                   // the title bar
         Console.WriteLine($"bar point {x},{y}  before=({before.Left},{before.Top})-({before.Right},{before.Bottom})");
 
         var size = Marshal.SizeOf<INPUT>();

@@ -52,7 +52,7 @@ public sealed class PadWindow : Window
         Title = "Shortcut Pad";
         Icon = AppIcon.TryLoad();
         // No native caption: border-only decorations mean no minimize and no
-        // maximize button at all. The bottom bar doubles as the title bar (see
+        // maximize button at all. The top bar doubles as the title bar (see
         // BuildUi), and the thick frame stays, so the window is still resizable.
         SystemDecorations = SystemDecorations.BorderOnly;
         ShowInTaskbar = true;
@@ -105,10 +105,12 @@ public sealed class PadWindow : Window
         // is obvious or easy to hit.
         _menuButton = new Button
         {
-            Content = "☰ Menu",
-            FontSize = 13,
-            Padding = new Thickness(12, 8, 12, 8),
+            Content = "☰",
+            FontSize = 17,
+            Width = 46,
+            Padding = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
             Cursor = new Cursor(StandardCursorType.Hand),
         };
         ToolTip.SetTip(_menuButton, "Options, settings and the button editor");
@@ -123,7 +125,7 @@ public sealed class PadWindow : Window
         statusRow.Children.Add(_status);
         ToolTip.SetTip(statusRow, "Drag this bar to move the pad");
 
-        // With no native title bar, the bottom bar is the drag grip. A press on
+        // With no native title bar, the top bar is the drag grip. A press on
         // the menu button still just opens the menu. The move is done by hand
         // (BeginMoveDrag is a no-op for a border-only window) and the pointer is
         // captured so the drag keeps tracking outside the bar.
@@ -135,7 +137,7 @@ public sealed class PadWindow : Window
         };
 
         var panel = new DockPanel();
-        DockPanel.SetDock(statusRow, Dock.Bottom);
+        DockPanel.SetDock(statusRow, Dock.Top);
         panel.Children.Add(statusRow);
         panel.Children.Add(_grid);
 

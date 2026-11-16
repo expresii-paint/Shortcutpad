@@ -41,9 +41,10 @@ within a second; the Options window shows the path it is using.
 ## Features
 
 - **Always on top**, tray icon (click to hide/show), right-click menu.
-- **Touch-friendly options**: a **☰ Menu** button sits at the pad's bottom-right
-  and opens an **Options window** with large buttons (auto flow, resizable,
-  show/hide, reload, edit config, edit buttons, opacity, docking, exit). This
+- **Touch-friendly options**: a compact **☰** button sits at the pad's top-right
+  (in the title bar) and opens an **Options window** with large buttons (auto
+  flow, resizable, show/hide, reload, edit config, edit buttons, opacity,
+  docking, exit). This
   exists because right-click is awkward on a touch screen, and because Windows
   11 keeps new tray icons in the hidden-icons overflow.
   A popup menu was tried first and does not work: opening the pad's
@@ -63,8 +64,9 @@ within a second; the Options window shows the path it is using.
   (`SystemDecorations.BorderOnly`), so there is **no minimize and no maximize
   button** — Windows 11 draws those in the DWM and ignores `WS_MAXIMIZEBOX`, so
   hiding the box bit alone does not remove them. The thick frame stays, so the
-  window is still resizable, and the **bottom bar doubles as the title bar**:
-  drag it to move the pad (it carries a "Drag this bar to move the pad" tip).
+  window is still resizable, and the **top bar is the title bar**: drag it to
+  move the pad (it carries a "Drag this bar to move the pad" tip). It holds the
+  status text on the left and a compact ☰ button on the right.
   A panel needs a background to be hit-testable, so the bar is transparent
   rather than unpainted. The Options and editor windows keep their native
   captions — they need a title and a close button.
