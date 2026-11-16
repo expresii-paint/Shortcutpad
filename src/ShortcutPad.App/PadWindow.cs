@@ -19,7 +19,9 @@ public sealed class PadWindow : Window
     private PadConfig _cfg = new();
 
     private Grid _grid = null!;
-    private TextBlock _status = null!;
+    private TextBlock _title = null!;
+    private DispatcherTimer? _titleTimer;
+    private int _visibleButtons;
     private Button _menuButton = null!;
     private TrayIcon? _tray;
     private FileSystemWatcher? _watcher;
@@ -92,12 +94,12 @@ public sealed class PadWindow : Window
     {
         _grid = new Grid { Margin = new Thickness(6) };
 
-        _status = new TextBlock
+        _title = new TextBlock
         {
-            Margin = new Thickness(6, 0, 6, 4),
-            FontSize = 12,
-            Foreground = Brushes.Gray,
-            Text = "ready",
+            Margin = new Thickness(10, 0, 6, 4),
+            FontSize = 13,
+            Opacity = 0.85,
+            Text = "ShortcutPad",
         };
 
         // A visible, touch-sized entry point to the same options menu that the
@@ -122,7 +124,7 @@ public sealed class PadWindow : Window
         statusRow.Background = Brushes.Transparent;
         DockPanel.SetDock(_menuButton, Dock.Right);
         statusRow.Children.Add(_menuButton);
-        statusRow.Children.Add(_status);
+        statusRow.Children.Add(_title);
         ToolTip.SetTip(statusRow, "Drag this bar to move the pad");
 
         // With no native title bar, the top bar is the drag grip. A press on
@@ -420,9 +422,8 @@ public sealed class PadWindow : Window
                 }
             }
 
-            Status(_cfg.AutoFlow && shown < _cfg.Buttons.Count
-                ? $"{cols} x {rows}  ({shown} of {_cfg.Buttons.Count})"
-                : $"{cols} x {rows}");
+            _visibleButtons = shown;
+            ShowTitle();
         }
         finally { _flowSuspended = false; }
     }
@@ -869,7 +870,33 @@ public sealed class PadWindow : Window
         }
     }
 
-    private void Status(string message) => _status.Text = message;
+    /// <summary>"ShortcutPad (12 of 25)" - how many buttons are on screen.</summary>
+    private void ShowTitle()
+    {
+        _titleTimer?.Stop();
+        _title.Opacity = 0.85;
+        _title.Text = _cfg.Buttons.Count == 0
+            ? "ShortcutPad"
+            : $"ShortcutPad ({_visibleButtons} of {_cfg.Buttons.Count})";
+    }
+
+    /// <summary>
+    /// Flash a message in the title bar - "config reloaded", "button size 156 x
+    /// 100" - then put the title back.
+    /// </summary>
+    private void Status(string message)
+    {
+        _titleTimer?.Stop();
+        _title.Text = message;
+        _title.Opacity = 0.7;
+        _titleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _titleTimer.Tick += (_, _) =>
+        {
+            _titleTimer!.Stop();
+            ShowTitle();
+        };
+        _titleTimer.Start();
+    }
 
     protected override void OnClosed(EventArgs e)
     {

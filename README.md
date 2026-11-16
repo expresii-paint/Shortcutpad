@@ -66,7 +66,9 @@ within a second; the Options window shows the path it is using.
   hiding the box bit alone does not remove them. The thick frame stays, so the
   window is still resizable, and the **top bar is the title bar**: drag it to
   move the pad (it carries a "Drag this bar to move the pad" tip). It holds the
-  status text on the left and a compact ☰ button on the right.
+  title on the left (`ShortcutPad (12 of 25)` - how many buttons are on screen)
+  and a compact ☰ button on the right. Feedback messages such as "config
+  reloaded" flash in the title for four seconds and then the title returns.
   A panel needs a background to be hit-testable, so the bar is transparent
   rather than unpainted. The Options and editor windows keep their native
   captions — they need a title and a close button.
