@@ -151,7 +151,13 @@ public sealed class PadWindow : Window
         panel.Children.Add(statusRow);
         panel.Children.Add(_grid);
 
-        Content = panel;
+        // The pad itself, plus a hit-test-transparent layer that carries the
+        // drag ghost.
+        _ghostLayer = new Canvas { IsHitTestVisible = false };
+        var overlay = new Grid();
+        overlay.Children.Add(panel);
+        overlay.Children.Add(_ghostLayer);
+        Content = overlay;
 
         ContextMenu = BuildContextMenu();
     }
@@ -286,7 +292,10 @@ public sealed class PadWindow : Window
                     _dragActive = true;
                     _suppressClick = true;
                     btn.Opacity = 0.35;
+                    ShowGhost(_cfg.Buttons[index], btn, e.GetPosition(_ghostLayer));
+                    Status($"dragging {GetLabel(index)} - drop it on another slot");
                 }
+                MoveGhost(e.GetPosition(_ghostLayer));
                 UpdateDragTarget(e);
             }, RoutingStrategies.Bubble, handledEventsToo: true);
             btn.AddHandler<PointerReleasedEventArgs>(PointerReleasedEvent, (_, e) =>
@@ -320,6 +329,8 @@ public sealed class PadWindow : Window
     private bool _suppressClick;
     private int _dragTarget = -1;
     private IBrush? _targetOriginalBrush;
+    private Canvas _ghostLayer = null!;
+    private Border? _ghost;
     private const double DragThreshold = 6.0;
     private static readonly IBrush TargetBrush =
         new SolidColorBrush(Color.FromRgb(0x2D, 0x6C, 0xDF));
@@ -364,7 +375,10 @@ public sealed class PadWindow : Window
         if (from >= 0 && from < _grid.Children.Count)
             _grid.Children[from].Opacity = 1.0;
         RestoreTarget();
+        HideGhost();
 
+        // A drop that misses every button still counts: take the nearest slot.
+        if (target < 0) target = NearestSlot(e.GetPosition(_grid));
         if (target >= 0 && target != from) MoveButton(from, target);
 
         // The Button still raises its Click for this release; swallow that one.
@@ -376,7 +390,78 @@ public sealed class PadWindow : Window
         if (_dragIndex >= 0 && _dragIndex < _grid.Children.Count)
             _grid.Children[_dragIndex].Opacity = 1.0;
         RestoreTarget();
+        HideGhost();
         _suppressClick = false;
+    }
+
+    private string GetLabel(int index) =>
+        index >= 0 && index < _cfg.Buttons.Count ? _cfg.Buttons[index].Label : "button";
+
+    /// <summary>
+    /// A copy of the dragged button that follows the pointer, so the gesture
+    /// reads as moving the button rather than just lighting up a slot.
+    /// </summary>
+    private void ShowGhost(PadButton b, Button visual, Point p)
+    {
+        HideGhost();
+        var size = visual.Bounds.Size;
+        _ghost = new Border
+        {
+            Width = size.Width,
+            Height = size.Height,
+            Background = visual.Background,
+            BorderBrush = visual.Foreground,
+            BorderThickness = new Thickness(1),
+            CornerRadius = visual.CornerRadius,
+            Opacity = 0.75,
+            IsHitTestVisible = false,
+            Child = new TextBlock
+            {
+                Text = b.Label,
+                FontSize = 15,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = visual.Foreground,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(4),
+            },
+        };
+        _ghostLayer.Children.Add(_ghost);
+        MoveGhost(p);
+    }
+
+    private void MoveGhost(Point p)
+    {
+        if (_ghost is null) return;
+        Canvas.SetLeft(_ghost, p.X - _ghost.Width / 2);
+        Canvas.SetTop(_ghost, p.Y - _ghost.Height / 2);
+    }
+
+    private void HideGhost()
+    {
+        if (_ghost is null) return;
+        _ghostLayer.Children.Remove(_ghost);
+        _ghost = null;
+    }
+
+    /// <summary>
+    /// The visible slot nearest to a point in grid coordinates - used when the
+    /// drop lands between buttons.
+    /// </summary>
+    private int NearestSlot(Point p)
+    {
+        var best = -1;
+        var bestDistance = double.MaxValue;
+        for (var i = 0; i < _grid.Children.Count; i++)
+        {
+            if (_grid.Children[i] is not Visual v || !v.IsVisible) continue;
+            var cx = v.Bounds.X + v.Bounds.Width / 2;
+            var cy = v.Bounds.Y + v.Bounds.Height / 2;
+            var d = (cx - p.X) * (cx - p.X) + (cy - p.Y) * (cy - p.Y);
+            if (d < bestDistance) { bestDistance = d; best = i; }
+        }
+        return best;
     }
 
     /// <summary>Moves a button to another slot and persists the new order.</summary>

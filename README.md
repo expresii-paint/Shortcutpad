@@ -43,10 +43,12 @@ within a second; the Options window shows the path it is using.
 - **Always on top**, tray icon (click to hide/show), right-click menu.
 - **Drag to reorder**: press a pad button, drag it onto another slot and release
   — the button moves there and the new order is written to `shortcut_pad.json`
-  straight away. The dragged button goes translucent, the drop target turns
-  blue, and the click that the press would have produced is swallowed so a
-  reorder never fires an action. (Getting the gesture to register at all needed
-  `handledEventsToo` — a Button's own class handler marks the press handled.)
+  straight away. A semi-transparent copy of the button follows the pointer (the
+  dragged original fades), the drop target is painted blue, and a drop that
+  lands between buttons takes the nearest slot. The click the press would have
+  produced is swallowed so a reorder never fires an action. (Getting the gesture
+  to register at all needed `handledEventsToo` — a Button's own class handler
+  marks the press handled.)
 - **Tooltips**: every pad button shows what it will do on hover (or touch and
   hold) — `Keystrokes: ctrl+c`, `Type text: hello from pad`, `Run: calc.exe` —
   using the same run → text → keys precedence as the click itself.

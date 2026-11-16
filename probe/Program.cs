@@ -517,14 +517,14 @@ internal static class Program
         SendInput(1, new[] { MouseInput(a.X, a.Y, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
         Thread.Sleep(150);
         SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTDOWN) }, size);
-        Thread.Sleep(150);
-        for (var i = 1; i <= 15; i++)
+        Thread.Sleep(700);                      // a person holds before dragging
+        for (var i = 1; i <= 25; i++)
         {
-            SendInput(1, new[] { MouseInput(a.X + (b.X - a.X) * i / 15, a.Y + (b.Y - a.Y) * i / 15,
+            SendInput(1, new[] { MouseInput(a.X + (b.X - a.X) * i / 25, a.Y + (b.Y - a.Y) * i / 25,
                 MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
-            Thread.Sleep(45);
+            Thread.Sleep(70);
         }
-        Thread.Sleep(250);
+        Thread.Sleep(400);
         SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTUP) }, size);
         Thread.Sleep(800);
         Console.WriteLine("drag done");
