@@ -77,7 +77,11 @@ within a second; the Options window shows the path it is using.
   window is still resizable, and the **top bar is the title bar**: drag it to
   move the pad (it carries a "Drag this bar to move the pad" tip). It holds the
   title on the left — `ShortcutPad`, plus `(12 of 25)` only when auto flow has
-  left buttons off screen — and a compact ☰ button on the right. Feedback
+  left buttons off screen — and a compact ☰ button on the right. The count is
+  one unbreakable unit (non-breaking spaces between the numbers, no space after
+  the bracket), so a narrow bar puts the whole `(12 of 25)` on its own line, and
+  the window's minimum width is raised to fit the word `ShortcutPad` so that is
+  never broken either. The title is vertically centred in the bar. Feedback
   messages such as "config reloaded" flash in the title for four seconds and
   then the title returns.
   A panel needs a background to be hit-testable, so the bar is transparent

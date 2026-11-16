@@ -42,6 +42,10 @@ public sealed class PadWindow : Window
     private const int LabelNoIcon = 20;     // glanceable when there is no icon
     private const double GridMargin = 12.0; // matches the grid's XAML margin
     private const double StatusHeight = 40.0; // title bar: title text + menu button
+    private const double TitleFontSize = 13.0;
+    private const double TitleMinFontSize = 9.0;
+    // Room the title never gets: the menu button plus both margins.
+    private const double TitleReserve = 62.0;
 
     private readonly record struct Placement(int Row, int Col, int SpanY, int SpanX);
 
@@ -98,9 +102,10 @@ public sealed class PadWindow : Window
         _title = new TextBlock
         {
             Margin = new Thickness(10, 0, 6, 4),
-            FontSize = 13,
+            FontSize = TitleFontSize,
             Opacity = 0.85,
             TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
             Text = "ShortcutPad",
         };
 
@@ -434,20 +439,27 @@ public sealed class PadWindow : Window
             {
                 if (_cfg.AutoFlow)
                 {
-                    // Freely resizable: whatever does not fit is left out.
-                    MinWidth = GridMargin + 80;
+                    // Freely resizable: whatever does not fit is left out. The
+                    // floor still has to fit the title bar, or "ShortcutPad"
+                    // would wrap mid-word.
+                    MinWidth = Math.Max(GridMargin + 80,
+                        TitleReserve + MeasureTitle("ShortcutPad", TitleFontSize));
                     MinHeight = GridMargin + BarHeight() + ChromeHeight() + 40;
                 }
                 else
                 {
                     // Fixed columns: keep the buttons at their target size.
-                    MinWidth = _cfg.ButtonWidth + GridMargin;
+                    // The title bar needs room for the menu button and the word
+                    // "ShortcutPad" too, or the title would wrap mid-word.
+                    MinWidth = Math.Max(_cfg.ButtonWidth + GridMargin,
+                        TitleReserve + MeasureTitle("ShortcutPad", TitleFontSize));
                     MinHeight = rows * _cfg.ButtonHeight + GridMargin + BarHeight() + ChromeHeight();
                 }
             }
 
             _visibleButtons = shown;
             ShowTitle();
+            FitTitleFont();
         }
         finally { _flowSuspended = false; }
     }
@@ -897,17 +909,55 @@ public sealed class PadWindow : Window
         }
     }
 
-    /// <summary>"ShortcutPad (12 of 25)" - how many buttons are on screen.</summary>
+    /// <summary>
+    /// "ShortcutPad", plus "(12 of 25)" when auto flow has left buttons off
+    /// screen. The count is only interesting when buttons are missing: with the
+    /// whole pad on screen "ShortcutPad (25 of 25)" is just noise.
+    /// </summary>
     private void ShowTitle()
     {
         _titleTimer?.Stop();
         _title.Opacity = 0.85;
-        // The count is only interesting when buttons are missing: with the
-        // whole pad on screen "ShortcutPad (25 of 25)" is just noise.
-        _title.Text = _cfg.Buttons.Count == 0 || _visibleButtons >= _cfg.Buttons.Count
-            ? "ShortcutPad"
-            : $"ShortcutPad ({_visibleButtons} of {_cfg.Buttons.Count})";
+        _title.Text = TitleText;
     }
+
+    /// <summary>
+    /// The title as one string. The count is one unbreakable unit: the spaces
+    /// inside it are non-breaking, so a narrow bar puts "(12 of 25)" on its own
+    /// line instead of splitting it, while the ordinary space before it is still
+    /// a wrap point. "ShortcutPad" has no spaces and cannot break.
+    /// </summary>
+    /// <summary>
+    /// Never let the title break inside the word "ShortcutPad". While the bar is
+    /// wide enough for that word, the ordinary wrap (before the count) is left
+    /// alone; below that the font shrinks until the word fits.
+    /// </summary>
+    private void FitTitleFont()
+    {
+        _title.FontSize = TitleFontSize;
+
+        var available = ClientSize.Width - TitleReserve;
+        if (available <= 0) return;
+
+        const string word = "ShortcutPad";
+        var wordWidth = MeasureTitle(word, TitleFontSize);
+        if (wordWidth <= 0 || wordWidth <= available) return;
+
+        var size = TitleFontSize * available / wordWidth;
+        _title.FontSize = Math.Max(TitleMinFontSize, Math.Round(size * 2) / 2);
+    }
+
+    private static double MeasureTitle(string text, double size)
+    {
+        var probe = new TextBlock { FontSize = size, Text = text };
+        probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return probe.DesiredSize.Width;
+    }
+
+    private string TitleText =>
+        _cfg.Buttons.Count == 0 || _visibleButtons >= _cfg.Buttons.Count
+            ? "ShortcutPad"
+            : $"ShortcutPad ({_visibleButtons}\u00A0of\u00A0{_cfg.Buttons.Count})";
 
     /// <summary>
     /// Flash a message in the title bar - "config reloaded", "button size 156 x
