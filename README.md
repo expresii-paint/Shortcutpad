@@ -166,7 +166,7 @@ and re-reads the file.
 
 | Field | Meaning |
 |---|---|
-| `resizable` | Window can be resized (forced off while docked). Default `true`. |
+| `resizable` | Window can be resized, docked or not. Default `true`. |
 | `autoFlow` | Column/row counts follow the window size. Default `true`. |
 | `buttonWidth` / `buttonHeight` | Target button size in DIPs used by auto flow. |
 | `width` / `height` | Remembered window size in DIPs (auto flow). |

@@ -168,7 +168,7 @@ public sealed class PadWindow : Window
             SetResizable = on =>
             {
                 _cfg.Resizable = on;
-                SetResizable(on && !IsDocked);
+                SetResizable(on);
                 Status($"resizable {(on ? "on" : "off")}");
                 QueueSave();
             },
@@ -472,7 +472,7 @@ public sealed class PadWindow : Window
         menu.Items.Add(MakeCheckable("Resizable", _cfg.Resizable, on =>
         {
             _cfg.Resizable = on;
-            SetResizable(on && !IsDocked);
+            SetResizable(on);
             Status($"resizable {(on ? "on" : "off")}");
             QueueSave();
         }));
@@ -640,7 +640,9 @@ public sealed class PadWindow : Window
             ? new PixelPoint(wa.X, wa.Y)
             : new PixelPoint((int)(wa.Right - width * scale - 2 * sideChrome * scale), wa.Y);
         Topmost = true;
-        SetResizable(false);
+        // Docking pins the pad to an edge and gives it the work-area height, but
+        // it stays resizable: the user can pull it back to a size they like.
+        SetResizable(_cfg.Resizable);
     }
 
     /// <summary>Physical pixels per DIP, measured from the window itself.</summary>
@@ -740,7 +742,7 @@ public sealed class PadWindow : Window
         menu.Items.Add(MakeTrayCheckable("Resizable", _cfg.Resizable, on =>
         {
             _cfg.Resizable = on;
-            SetResizable(on && !IsDocked);
+            SetResizable(on);
             Status($"resizable {(on ? "on" : "off")}");
             QueueSave();
         }));

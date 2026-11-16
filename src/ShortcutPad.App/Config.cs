@@ -19,7 +19,7 @@ public sealed class PadConfig
     /// <summary>Pin the pad to a desktop edge: "none", "left" or "right".</summary>
     public string Dock { get; set; } = "none";
 
-    /// <summary>Let the user resize the pad. Ignored while docked.</summary>
+    /// <summary>Let the user resize the pad, docked or not.</summary>
     public bool Resizable { get; set; } = true;
 
     /// <summary>
