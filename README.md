@@ -45,9 +45,11 @@ within a second; the Options window shows the path it is using.
   hold) — `Keystrokes: ctrl+c`, `Type text: hello from pad`, `Run: calc.exe` —
   using the same run → text → keys precedence as the click itself.
 - **Touch-friendly options**: a compact **☰** button sits at the pad's top-right
-  (in the title bar) and opens an **Options window** with large buttons (auto
-  flow, resizable, show/hide, reload, edit config, edit buttons, opacity,
-  docking, exit). This
+  (in the title bar) and opens an **Options window** laid out to fit one screen
+  — no scrolling (verified: zero scroll bars, every control inside the window).
+  It offers edit config, edit buttons, opacity, docking, target button size and
+  exit; auto flow, resizable, show/hide and reload live in the tray and
+  right-click menus instead. This
   exists because right-click is awkward on a touch screen, and because Windows
   11 keeps new tray icons in the hidden-icons overflow.
   A popup menu was tried first and does not work: opening the pad's
@@ -57,11 +59,12 @@ within a second; the Options window shows the path it is using.
   right-click on the pad currently shows nothing — use the ☰ Menu button.
 - **Sends keystrokes to the app you were in** — it tracks the foreground window
   and hands focus back before sending, so your workflow is not interrupted.
-- **Touch-sized buttons**: the target is 100 x 62 DIPs per button (well above
+- **Touch-sized buttons**: the target is 62 x 62 DIPs per button (well above
   the 44/48 pt minimums), with grid rows set to `Star`. The target is yours to
-  set: **☰ Menu → Button size** offers Compact / Default / Large / XL plus width
-  and height boxes (32–400 DIPs) that apply as you type. Auto flow divides the
-  window by that target, so bigger buttons mean fewer, larger targets.
+  set: **☰ Menu → Button size** offers Compact (48 x 48) / Default (62 x 62) /
+  Large / XL plus width and height boxes (32–400 DIPs) that apply as you type.
+  Auto flow divides the window by that target, so bigger buttons mean fewer,
+  larger targets.
 - **Remembers itself**: window size and position, target button size, opacity,
   dock side and the button list all live in `shortcut_pad.json` and survive a
   restart. The size is saved whether or not auto flow is on (a resize with auto
@@ -128,7 +131,7 @@ within a second; the Options window shows the path it is using.
   "dock": "left",
   "resizable": true,
   "autoFlow": true,
-  "buttonWidth": 100,
+  "buttonWidth": 62,
   "buttonHeight": 62,
   "width": 526,
   "height": 400,

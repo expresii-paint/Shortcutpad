@@ -14,12 +14,8 @@ namespace ShortcutPad;
 /// </summary>
 public sealed class OptionsActions
 {
-    public Action ToggleVisible { get; set; } = () => { };
-    public Action Reload { get; set; } = () => { };
     public Action EditConfig { get; set; } = () => { };
     public Action OpenEditor { get; set; } = () => { };
-    public Action<bool> SetAutoFlow { get; set; } = _ => { };
-    public Action<bool> SetResizable { get; set; } = _ => { };
     public Action<double> SetOpacity { get; set; } = _ => { };
     public Action<string> SetDock { get; set; } = _ => { };
 
@@ -60,26 +56,23 @@ public sealed class OptionsWindow : Window
         Title = "Options";
         Icon = AppIcon.TryLoad();
         Opened += (_, _) => WindowChrome.HideMaximize(this, PadPlatform.Create());
-        Width = 430;
-        Height = 660;
+        // Sized to fit its content: everything below is chosen so the dialog
+        // never needs to scroll on a normal display.
+        Width = 440;
+        Height = 540;
         MinWidth = 340;
         MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         FontFamily = new FontFamily("Segoe UI");
 
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(14) };
-        stack.Children.Add(MakeToggle("Auto flow", cfg.AutoFlow,
-            () => _cfg.AutoFlow, on => _actions.SetAutoFlow(on)));
-        stack.Children.Add(MakeToggle("Resizable", cfg.Resizable,
-            () => _cfg.Resizable, on => _actions.SetResizable(on)));
 
-        stack.Children.Add(Separator());
-        stack.Children.Add(MakeButton("Show / hide pad", _actions.ToggleVisible));
-        stack.Children.Add(MakeButton("Reload config", _actions.Reload));
-        stack.Children.Add(MakeButton("Edit config (JSON)", _actions.EditConfig));
-        stack.Children.Add(MakeButton("Edit buttons…", _actions.OpenEditor));
+        stack.Children.Add(Row(new[]
+        {
+            MakeButton("Edit config (JSON)", _actions.EditConfig, 203),
+            MakeButton("Edit buttons…", _actions.OpenEditor, 203),
+        }));
 
-        stack.Children.Add(Separator());
         stack.Children.Add(Caption("Opacity"));
         stack.Children.Add(Row(new[]
         {
@@ -100,8 +93,8 @@ public sealed class OptionsWindow : Window
         stack.Children.Add(Caption("Button size (DIPs) — what fits your finger"));
         stack.Children.Add(Row(new[]
         {
-            MakeButton("Compact", () => ApplySize(70, 48)),
-            MakeButton("Default", () => ApplySize(100, 62)),
+            MakeButton("Compact", () => ApplySize(48, 48)),
+            MakeButton("Default", () => ApplySize(62, 62)),
             MakeButton("Large", () => ApplySize(124, 80)),
             MakeButton("XL", () => ApplySize(156, 100)),
         }));
@@ -118,10 +111,8 @@ public sealed class OptionsWindow : Window
             box.LostFocus += (_, _) => ApplySizeFromBoxes();
         }
         stack.Children.Add(Row2(_width, _height));
-
         stack.Children.Add(Caption("DIPs. Applies as you type; bigger buttons are easier to hit."));
 
-        stack.Children.Add(Separator());
         stack.Children.Add(MakeButton("Exit", _actions.Exit));
         stack.Children.Add(Caption("Settings are stored in:"));
         stack.Children.Add(new TextBlock
@@ -142,7 +133,7 @@ public sealed class OptionsWindow : Window
 
     private static string Label(string text, bool on) => $"{text}: {(on ? "on" : "off")}";
 
-    private static Button MakeButton(string header, Action action)
+    private static Button MakeButton(string header, Action action, double? width = null)
     {
         var b = new Button
         {
@@ -153,27 +144,8 @@ public sealed class OptionsWindow : Window
             FontSize = 15,
             Cursor = new Cursor(StandardCursorType.Hand),
         };
+        if (width is not null) b.Width = width.Value;
         b.Click += (_, _) => action();
-        return b;
-    }
-
-    private static Button MakeToggle(string header, bool isOn, Func<bool> get, Action<bool> set)
-    {
-        var b = new Button
-        {
-            Height = RowHeight,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            FontSize = 15,
-            Cursor = new Cursor(StandardCursorType.Hand),
-        };
-        b.Click += (_, _) =>
-        {
-            var on = !get();
-            set(on);
-            b.Content = Label(header, on);
-        };
-        b.Content = Label(header, isOn);
         return b;
     }
 

@@ -164,25 +164,9 @@ public sealed class PadWindow : Window
     {
         var actions = new OptionsActions
         {
-            ToggleVisible = ToggleVisible,
-            Reload = Reload,
             EditConfig = () =>
                 Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true }),
             OpenEditor = OpenButtonEditor,
-            SetAutoFlow = on =>
-            {
-                _cfg.AutoFlow = on;
-                ApplyFlow();
-                Status($"auto flow {(on ? "on" : "off")}");
-                QueueSave();
-            },
-            SetResizable = on =>
-            {
-                _cfg.Resizable = on;
-                SetResizable(on);
-                Status($"resizable {(on ? "on" : "off")}");
-                QueueSave();
-            },
             SetOpacity = SetOpacity,
             SetDock = SetDock,
             SetButtonSize = (w, h) => ApplyButtonSize(w, h),

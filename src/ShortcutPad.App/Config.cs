@@ -226,7 +226,7 @@ public static class ConfigStore
         Opacity = 1.0,
         Dock = "none",
         AutoFlow = true,
-        ButtonWidth = 100,
+        ButtonWidth = 62,
         ButtonHeight = 62,
         Buttons = new List<PadButton>
         {
