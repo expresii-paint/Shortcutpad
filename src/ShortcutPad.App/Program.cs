@@ -66,9 +66,15 @@ public static class Program
         /// <summary>Bring the running pad forward; used when a second launch is ignored.</summary>
         public static void FocusPad()
         {
+            const int swShow = 5;
             const int swRestore = 9;
             var hwnd = FindWindow(null, "Shortcut Pad");
             if (hwnd == IntPtr.Zero) return;
+
+            // The pad may be hidden to the tray, minimised, or behind other
+            // windows - a second launch has to actually bring it back, or the
+            // user sees nothing happen at all.
+            ShowWindow(hwnd, swShow);
             ShowWindow(hwnd, swRestore);
             SetForegroundWindow(hwnd);
         }
