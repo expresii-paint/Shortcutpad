@@ -59,6 +59,13 @@ within a second; the Options window shows the path it is using.
   set: **☰ Menu → Button size** offers Compact / Default / Large / XL plus width
   and height boxes (32–400 DIPs) that apply as you type. Auto flow divides the
   window by that target, so bigger buttons mean fewer, larger targets.
+- **Remembers itself**: window size and position, target button size, opacity,
+  dock side and the button list all live in `shortcut_pad.json` and survive a
+  restart. The size is saved whether or not auto flow is on (a resize with auto
+  flow off used to be lost), and opacity/button size are written immediately
+  rather than on the 600 ms debounce. A single-instance guard means a second
+  launch focuses the running pad instead of starting a rival that would
+  overwrite the same file.
 - **Resizable**: drag any edge or corner. The window remembers its size.
 - **No caption buttons**: the pad uses border-only decorations
   (`SystemDecorations.BorderOnly`), so there is **no minimize and no maximize

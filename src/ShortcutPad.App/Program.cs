@@ -5,6 +5,10 @@ namespace ShortcutPad;
 
 public static class Program
 {
+    // Held for the life of the process: a local would be collected early and
+    // the second-instance guard would silently stop working.
+    private static Mutex? s_single;
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -32,6 +36,16 @@ public static class Program
             return;
         }
 
+        // One pad per desktop. A second launch would run a second pad writing
+        // the same shortcut_pad.json, and the two would overwrite each other's
+        // settings - which looks exactly like "my settings do not stick".
+        s_single = new Mutex(true, "ShortcutPad-single-instance", out var first);
+        if (!first)
+        {
+            if (OperatingSystem.IsWindows()) NativeMethods.FocusPad();
+            return;
+        }
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
@@ -40,6 +54,25 @@ public static class Program
 
     internal static class NativeMethods
     {
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr FindWindow(string? className, string windowName);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int command);
+
+        /// <summary>Bring the running pad forward; used when a second launch is ignored.</summary>
+        public static void FocusPad()
+        {
+            const int swRestore = 9;
+            var hwnd = FindWindow(null, "Shortcut Pad");
+            if (hwnd == IntPtr.Zero) return;
+            ShowWindow(hwnd, swRestore);
+            SetForegroundWindow(hwnd);
+        }
+
         /// <summary>AttachConsole(dwProcessId): pass -1 for the parent process.</summary>
         public const uint AttachParent = 0xFFFFFFFF;
 

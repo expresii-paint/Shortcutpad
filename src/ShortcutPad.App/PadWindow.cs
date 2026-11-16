@@ -20,6 +20,7 @@ public sealed class PadWindow : Window
 
     private Grid _grid = null!;
     private TextBlock _title = null!;
+    private DockPanel _statusRow = null!;
     private DispatcherTimer? _titleTimer;
     private int _visibleButtons;
     private Button _menuButton = null!;
@@ -40,7 +41,7 @@ public sealed class PadWindow : Window
     private const int LabelWithIcon = 13;
     private const int LabelNoIcon = 20;     // glanceable when there is no icon
     private const double GridMargin = 12.0; // matches the grid's XAML margin
-    private const double StatusHeight = 40.0; // bottom row: status text + menu button
+    private const double StatusHeight = 40.0; // title bar: title text + menu button
 
     private readonly record struct Placement(int Row, int Col, int SpanY, int SpanX);
 
@@ -99,6 +100,7 @@ public sealed class PadWindow : Window
             Margin = new Thickness(10, 0, 6, 4),
             FontSize = 13,
             Opacity = 0.85,
+            TextWrapping = TextWrapping.Wrap,
             Text = "ShortcutPad",
         };
 
@@ -118,7 +120,7 @@ public sealed class PadWindow : Window
         ToolTip.SetTip(_menuButton, "Options, settings and the button editor");
         _menuButton.Click += (_, _) => OpenOptions();
 
-        var statusRow = new DockPanel { Height = StatusHeight };
+        var statusRow = _statusRow = new DockPanel { MinHeight = StatusHeight };
         // A panel with no background is not hit-testable, so the bar would never
         // see the press that starts a drag.
         statusRow.Background = Brushes.Transparent;
@@ -290,6 +292,13 @@ public sealed class PadWindow : Window
     private bool IsDocked => _cfg.Dock is "left" or "right";
 
     /// <summary>
+    /// The title bar's real height. It is <see cref="StatusHeight"/> until the
+    /// title wraps onto more than one line, and the grid has to subtract
+    /// whatever it actually is or the last row would sit under the bar.
+    /// </summary>
+    private double BarHeight() => Math.Max(StatusHeight, _statusRow?.Bounds.Height ?? 0);
+
+    /// <summary>
     /// Compute the grid for the space the window actually has: the column count
     /// from the width and the row count from the height. Auto flow no longer
     /// grows rows to fit every button — whatever does not fit is left out, so
@@ -306,7 +315,7 @@ public sealed class PadWindow : Window
             : Math.Max(1, Math.Min(n, _cfg.Columns));
 
         var rows = _cfg.AutoFlow
-            ? Math.Max(1, Math.Min(n, (int)((heightDips - GridMargin - StatusHeight) / Math.Max(20, _cfg.ButtonHeight))))
+            ? Math.Max(1, Math.Min(n, (int)((heightDips - GridMargin - BarHeight()) / Math.Max(20, _cfg.ButtonHeight))))
             : Math.Max(1, (int)Math.Ceiling(n / (double)cols));
 
         return (cols, rows, PackVisible(_cfg.Buttons, cols, rows));
@@ -412,13 +421,13 @@ public sealed class PadWindow : Window
                 {
                     // Freely resizable: whatever does not fit is left out.
                     MinWidth = GridMargin + 80;
-                    MinHeight = GridMargin + StatusHeight + ChromeHeight() + 40;
+                    MinHeight = GridMargin + BarHeight() + ChromeHeight() + 40;
                 }
                 else
                 {
                     // Fixed columns: keep the buttons at their target size.
                     MinWidth = _cfg.ButtonWidth + GridMargin;
-                    MinHeight = rows * _cfg.ButtonHeight + GridMargin + StatusHeight + ChromeHeight();
+                    MinHeight = rows * _cfg.ButtonHeight + GridMargin + BarHeight() + ChromeHeight();
                 }
             }
 
@@ -445,7 +454,10 @@ public sealed class PadWindow : Window
         if (_flowSuspended) return;
         ApplyFlow();
 
-        if (_cfg.AutoFlow && !IsDocked)
+        // Remember the size the user settled on. Auto flow or not, the size is
+        // their choice. A docked pad's size is the work area rather than a
+        // choice, so that one is not saved.
+        if (!IsDocked)
         {
             _cfg.Width = ClientSize.Width;
             _cfg.Height = ClientSize.Height;
@@ -586,7 +598,7 @@ public sealed class PadWindow : Window
         Opacity = opacity;
         _cfg.Opacity = opacity;
         Status($"opacity {opacity * 100:0}%");
-        QueueSave();
+        SaveConfig();
     }
 
     /// <summary>
@@ -603,7 +615,7 @@ public sealed class PadWindow : Window
         _cfg.ButtonWidth = w;
         _cfg.ButtonHeight = h;
         ApplyFlow();
-        QueueSave();
+        SaveConfig();
         Status($"button size {w} x {h}");
     }
 

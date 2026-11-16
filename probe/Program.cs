@@ -84,6 +84,8 @@ internal static class Program
         var capClick = -1;
         var dragDx = 0;
         var dragDy = 0;
+        var resizeDx = 0;
+        var resizeDy = 0;
         var whatX = -1;
         var whatY = -1;
         var pressAt = false;
@@ -108,6 +110,7 @@ internal static class Program
                 case "--cap-title": capTitle = args[++i]; break;
                 case "--cap-click": capClick = int.Parse(args[++i]); break;
                 case "--drag-bar": dragDx = int.Parse(args[++i]); dragDy = int.Parse(args[++i]); break;
+                case "--resize": resizeDx = int.Parse(args[++i]); resizeDy = int.Parse(args[++i]); break;
                 case "--whatat": whatX = int.Parse(args[++i]); whatY = int.Parse(args[++i]); break;
                 case "--press-at": whatX = int.Parse(args[++i]); whatY = int.Parse(args[++i]); pressAt = true; break;
             }
@@ -144,6 +147,13 @@ internal static class Program
             ApplicationConfiguration.Initialize();
             if (pressAt) { Console.WriteLine($"press at {whatX},{whatY}"); Click(whatX, whatY); }
             else Console.WriteLine($"AT {whatX},{whatY}: {DescribeWindowAt(whatX, whatY)}");
+            return 0;
+        }
+
+        if (resizeDx != 0 || resizeDy != 0)
+        {
+            ApplicationConfiguration.Initialize();
+            ResizeWindow("Shortcut Pad", resizeDx, resizeDy);
             return 0;
         }
 
@@ -442,6 +452,38 @@ internal static class Program
     /// Drags the pad's top bar (its stand-in title bar) and reports the window
     /// rect before and after, to prove the bar moves the window.
     /// </summary>
+    /// <summary>Drags the pad's bottom-right corner, i.e. a real user resize.</summary>
+    private static void ResizeWindow(string title, int dx, int dy)
+    {
+        var hwnd = FindWindow(null, title);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine("WINDOW NOT FOUND " + title); return; }
+        GetWindowRect(hwnd, out var before);
+        GetClientRect(hwnd, out var cr);
+        ClientToScreen(hwnd, out var origin);
+
+        // the resize border lives in the window frame, outside the client area
+        var x = before.Right - 2;
+        var y = before.Bottom - 2;
+        Console.WriteLine($"corner {x},{y}  before=({before.Left},{before.Top})-({before.Right},{before.Bottom})");
+
+        var size = Marshal.SizeOf<INPUT>();
+        SendInput(1, new[] { MouseInput(x, y, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+        Thread.Sleep(150);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTDOWN) }, size);
+        Thread.Sleep(150);
+        for (var i = 1; i <= 15; i++)
+        {
+            SendInput(1, new[] { MouseInput(x + dx * i / 15, y + dy * i / 15, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+            Thread.Sleep(45);
+        }
+        Thread.Sleep(200);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTUP) }, size);
+        Thread.Sleep(800);
+
+        GetWindowRect(hwnd, out var after);
+        Console.WriteLine($"after =({after.Left},{after.Top})-({after.Right},{after.Bottom})  size delta=({after.Right - before.Right},{after.Bottom - before.Bottom})");
+    }
+
     private static void DragBottomBar(string title, int dx, int dy)
     {
         var hwnd = FindWindow(null, title);
