@@ -41,6 +41,9 @@ within a second; the Options window shows the path it is using.
 ## Features
 
 - **Always on top**, tray icon (click to hide/show), right-click menu.
+- **Tooltips**: every pad button shows what it will do on hover (or touch and
+  hold) — `Keystrokes: ctrl+c`, `Type text: hello from pad`, `Run: calc.exe` —
+  using the same run → text → keys precedence as the click itself.
 - **Touch-friendly options**: a compact **☰** button sits at the pad's top-right
   (in the title bar) and opens an **Options window** with large buttons (auto
   flow, resizable, show/hide, reload, edit config, edit buttons, opacity,
@@ -73,9 +76,10 @@ within a second; the Options window shows the path it is using.
   hiding the box bit alone does not remove them. The thick frame stays, so the
   window is still resizable, and the **top bar is the title bar**: drag it to
   move the pad (it carries a "Drag this bar to move the pad" tip). It holds the
-  title on the left (`ShortcutPad (12 of 25)` - how many buttons are on screen)
-  and a compact ☰ button on the right. Feedback messages such as "config
-  reloaded" flash in the title for four seconds and then the title returns.
+  title on the left — `ShortcutPad`, plus `(12 of 25)` only when auto flow has
+  left buttons off screen — and a compact ☰ button on the right. Feedback
+  messages such as "config reloaded" flash in the title for four seconds and
+  then the title returns.
   A panel needs a background to be hit-testable, so the bar is transparent
   rather than unpainted. The Options and editor windows keep their native
   captions — they need a title and a close button.

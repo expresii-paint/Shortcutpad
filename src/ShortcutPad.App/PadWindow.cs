@@ -272,6 +272,9 @@ public sealed class PadWindow : Window
                 };
             }
 
+            // Hover (or touch-and-hold) shows what the button will do.
+            ToolTip.SetTip(btn, Describe(b));
+
             var index = i;
             btn.Click += (_, _) => Execute(_cfg.Buttons[index]);
             _grid.Children.Add(btn);
@@ -280,6 +283,18 @@ public sealed class PadWindow : Window
         }
 
         ApplyFlow();
+    }
+
+    /// <summary>
+    /// What a button does, for its tooltip. Same precedence as
+    /// <see cref="Execute"/>: run a program, then type text, then send keys.
+    /// </summary>
+    private static string Describe(PadButton b)
+    {
+        if (!string.IsNullOrWhiteSpace(b.Run)) return $"Run: {b.Run}";
+        if (!string.IsNullOrWhiteSpace(b.Text)) return $"Type text: {b.Text}";
+        if (!string.IsNullOrWhiteSpace(b.Keys)) return $"Keystrokes: {b.Keys}";
+        return "No action configured";
     }
 
     /// <summary>Relative luminance, normalized to 0..1.</summary>
@@ -887,7 +902,9 @@ public sealed class PadWindow : Window
     {
         _titleTimer?.Stop();
         _title.Opacity = 0.85;
-        _title.Text = _cfg.Buttons.Count == 0
+        // The count is only interesting when buttons are missing: with the
+        // whole pad on screen "ShortcutPad (25 of 25)" is just noise.
+        _title.Text = _cfg.Buttons.Count == 0 || _visibleButtons >= _cfg.Buttons.Count
             ? "ShortcutPad"
             : $"ShortcutPad ({_visibleButtons} of {_cfg.Buttons.Count})";
     }
