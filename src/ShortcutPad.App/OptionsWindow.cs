@@ -14,10 +14,8 @@ namespace ShortcutPad;
 /// </summary>
 public sealed class OptionsActions
 {
-    public Action EditConfig { get; set; } = () => { };
     public Action OpenEditor { get; set; } = () => { };
     public Action<double> SetOpacity { get; set; } = _ => { };
-    public Action<string> SetDock { get; set; } = _ => { };
 
     /// <summary>
     /// Target button size in DIPs. Auto flow derives the column and row counts
@@ -59,7 +57,7 @@ public sealed class OptionsWindow : Window
         // Sized to fit its content: everything below is chosen so the dialog
         // never needs to scroll on a normal display.
         Width = 440;
-        Height = 540;
+        Height = 470;
         MinWidth = 340;
         MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -67,11 +65,7 @@ public sealed class OptionsWindow : Window
 
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(14) };
 
-        stack.Children.Add(Row(new[]
-        {
-            MakeButton("Edit config (JSON)", _actions.EditConfig, 203),
-            MakeButton("Edit buttons…", _actions.OpenEditor, 203),
-        }));
+        stack.Children.Add(MakeButton("Edit buttons…", _actions.OpenEditor));
 
         stack.Children.Add(Caption("Opacity"));
         stack.Children.Add(Row(new[]
@@ -80,14 +74,6 @@ public sealed class OptionsWindow : Window
             MakeButton("85%", () => _actions.SetOpacity(0.85)),
             MakeButton("70%", () => _actions.SetOpacity(0.70)),
             MakeButton("50%", () => _actions.SetOpacity(0.50)),
-        }));
-
-        stack.Children.Add(Caption("Dock to a screen edge"));
-        stack.Children.Add(Row(new[]
-        {
-            MakeButton("Left", () => _actions.SetDock("left")),
-            MakeButton("Right", () => _actions.SetDock("right")),
-            MakeButton("Undock", () => _actions.SetDock("none")),
         }));
 
         stack.Children.Add(Caption("Button size (DIPs) — what fits your finger"));

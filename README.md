@@ -47,8 +47,8 @@ within a second; the Options window shows the path it is using.
 - **Touch-friendly options**: a compact **☰** button sits at the pad's top-right
   (in the title bar) and opens an **Options window** laid out to fit one screen
   — no scrolling (verified: zero scroll bars, every control inside the window).
-  It offers edit config, edit buttons, opacity, docking, target button size and
-  exit; auto flow, resizable, show/hide and reload live in the tray and
+  It offers the button editor, opacity, target button size and exit; auto flow,
+  resizable, show/hide, reload, edit config and docking live in the tray and
   right-click menus instead. This
   exists because right-click is awkward on a touch screen, and because Windows
   11 keeps new tray icons in the hidden-icons overflow.

@@ -164,11 +164,8 @@ public sealed class PadWindow : Window
     {
         var actions = new OptionsActions
         {
-            EditConfig = () =>
-                Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true }),
             OpenEditor = OpenButtonEditor,
             SetOpacity = SetOpacity,
-            SetDock = SetDock,
             SetButtonSize = (w, h) => ApplyButtonSize(w, h),
             Exit = Exit,
         };
