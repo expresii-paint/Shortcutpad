@@ -1,5 +1,7 @@
 # Shortcut Pad
 
+![The pad: a title bar with the ☰ menu above a grid of buttons](docs/screenshot.png)
+
 An always-on-top on-screen button pad that sends real keystrokes (or types text,
 or runs a program) to whatever app you were using. One C# codebase for
 **Windows, macOS and Linux (X11)**, built on Avalonia.
