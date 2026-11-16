@@ -57,9 +57,11 @@ within a second; the Options window shows the path it is using.
 - **Touch-friendly options**: a compact **☰** button sits at the pad's top-right
   (in the title bar) and opens an **Options window** laid out to fit one screen
   — no scrolling (verified: zero scroll bars, every control inside the window).
-  It offers the button editor, opacity, target button size and exit; auto flow,
-  resizable, show/hide, reload, edit config and docking live in the tray and
-  right-click menus instead. This
+  It offers the button editor, opacity, target button size and exit. The tray
+  and right-click menus carry the same core (show/hide, editor, opacity, exit);
+  auto flow, resizable, reload, edit config and docking are **not** in the UI any
+  more — they stay editable in `shortcut_pad.json` and docking still happens by
+  dropping the pad on a screen edge. This
   exists because right-click is awkward on a touch screen, and because Windows
   11 keeps new tray icons in the hidden-icons overflow.
   A popup menu was tried first and does not work: opening the pad's

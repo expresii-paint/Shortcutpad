@@ -684,32 +684,10 @@ public sealed class PadWindow : Window
     {
         var menu = new ContextMenu();
         menu.Items.Add(MakeItem("Show / hide", ToggleVisible));
-        menu.Items.Add(MakeItem("Reload config", Reload));
-        menu.Items.Add(MakeItem("Edit config", () =>
-            Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true })));
         menu.Items.Add(MakeItem("Edit buttons…", OpenButtonEditor));
         menu.Items.Add(new Separator());
         foreach (var opacity in new[] { 1.0, 0.85, 0.7, 0.5 })
             menu.Items.Add(MakeItem($"Opacity {opacity * 100:0}%", () => SetOpacity(opacity)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(MakeCheckable("Auto flow", _cfg.AutoFlow, on =>
-        {
-            _cfg.AutoFlow = on;
-            ApplyFlow();
-            Status($"auto flow {(on ? "on" : "off")}");
-            QueueSave();
-        }));
-        menu.Items.Add(MakeCheckable("Resizable", _cfg.Resizable, on =>
-        {
-            _cfg.Resizable = on;
-            SetResizable(on);
-            Status($"resizable {(on ? "on" : "off")}");
-            QueueSave();
-        }));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(MakeItem("Dock left", () => SetDock("left")));
-        menu.Items.Add(MakeItem("Dock right", () => SetDock("right")));
-        menu.Items.Add(MakeItem("Undock", () => SetDock("none")));
         menu.Items.Add(new Separator());
         menu.Items.Add(MakeItem("Exit", Exit));
         return menu;
@@ -719,32 +697,6 @@ public sealed class PadWindow : Window
     {
         var item = new MenuItem { Header = header };
         item.Click += (_, _) => action();
-        return item;
-    }
-
-    private static string Mark(string header, bool on) => (on ? "✓ " : "   ") + header;
-
-    private static MenuItem MakeCheckable(string header, bool isChecked, Action<bool> setter)
-    {
-        var item = new MenuItem { Header = Mark(header, isChecked) };
-        item.Click += (_, _) =>
-        {
-            isChecked = !isChecked;
-            item.Header = Mark(header, isChecked);
-            setter(isChecked);
-        };
-        return item;
-    }
-
-    private static NativeMenuItem MakeTrayCheckable(string header, bool isChecked, Action<bool> setter)
-    {
-        var item = new NativeMenuItem { Header = Mark(header, isChecked) };
-        item.Click += (_, _) =>
-        {
-            isChecked = !isChecked;
-            item.Header = Mark(header, isChecked);
-            setter(isChecked);
-        };
         return item;
     }
 
@@ -957,30 +909,11 @@ public sealed class PadWindow : Window
     {
         var menu = new NativeMenu();
         AddTrayItem(menu, "Show / hide", ToggleVisible);
-        AddTrayItem(menu, "Reload config", Reload);
-        AddTrayItem(menu, "Edit config", () =>
-            Process.Start(new ProcessStartInfo(_configPath) { UseShellExecute = true }));
         AddTrayItem(menu, "Edit buttons…", OpenButtonEditor);
         menu.Items.Add(new NativeMenuItemSeparator());
-        menu.Items.Add(MakeTrayCheckable("Auto flow", _cfg.AutoFlow, on =>
-        {
-            _cfg.AutoFlow = on;
-            ApplyFlow();
-            Status($"auto flow {(on ? "on" : "off")}");
-            QueueSave();
-        }));
-        menu.Items.Add(MakeTrayCheckable("Resizable", _cfg.Resizable, on =>
-        {
-            _cfg.Resizable = on;
-            SetResizable(on);
-            Status($"resizable {(on ? "on" : "off")}");
-            QueueSave();
-        }));
         foreach (var opacity in new[] { 1.0, 0.85, 0.7, 0.5 })
             AddTrayItem(menu, $"Opacity {opacity * 100:0}%", () => SetOpacity(opacity));
-        AddTrayItem(menu, "Dock left", () => SetDock("left"));
-        AddTrayItem(menu, "Dock right", () => SetDock("right"));
-        AddTrayItem(menu, "Undock", () => SetDock("none"));
+        menu.Items.Add(new NativeMenuItemSeparator());
         AddTrayItem(menu, "Exit", Exit);
         return menu;
     }
