@@ -51,7 +51,7 @@ public sealed class OptionsWindow : Window
         _cfg = cfg;
         _actions = actions;
 
-        Title = "Options";
+        Title = $"{AppInfo.NameWithVersion} - Options";
         Icon = AppIcon.TryLoad();
         Opened += (_, _) => WindowChrome.HideMaximize(this, PadPlatform.Create());
         // Sized to fit its content: everything below is chosen so the dialog

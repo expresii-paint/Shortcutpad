@@ -892,7 +892,7 @@ public sealed class PadWindow : Window
             _tray = new TrayIcon
             {
                 Icon = icon,
-                ToolTipText = "Shortcut Pad",
+                ToolTipText = AppInfo.NameWithVersion,
                 IsVisible = true,
                 Menu = BuildTrayMenu(),
             };
@@ -1077,8 +1077,8 @@ public sealed class PadWindow : Window
 
     private string TitleText =>
         _cfg.Buttons.Count == 0 || _visibleButtons >= _cfg.Buttons.Count
-            ? "ShortcutPad"
-            : $"ShortcutPad ({_visibleButtons}\u00A0of\u00A0{_cfg.Buttons.Count})";
+            ? $"ShortcutPad {AppInfo.Version}"
+            : $"ShortcutPad {AppInfo.Version} ({_visibleButtons}\u00A0of\u00A0{_cfg.Buttons.Count})";
 
     /// <summary>
     /// Flash a message in the title bar - "config reloaded", "button size 156 x
