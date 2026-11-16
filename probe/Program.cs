@@ -82,6 +82,11 @@ internal static class Program
         string? clickInTitle = null, clickInName = null;
         string? capTitle = null;
         var capClick = -1;
+        var dragDx = 0;
+        var dragDy = 0;
+        var whatX = -1;
+        var whatY = -1;
+        var pressAt = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -102,6 +107,9 @@ internal static class Program
                 case "--click-in": clickInTitle = args[++i]; clickInName = args[++i]; break;
                 case "--cap-title": capTitle = args[++i]; break;
                 case "--cap-click": capClick = int.Parse(args[++i]); break;
+                case "--drag-bar": dragDx = int.Parse(args[++i]); dragDy = int.Parse(args[++i]); break;
+                case "--whatat": whatX = int.Parse(args[++i]); whatY = int.Parse(args[++i]); break;
+                case "--press-at": whatX = int.Parse(args[++i]); whatY = int.Parse(args[++i]); pressAt = true; break;
             }
         }
 
@@ -128,6 +136,21 @@ internal static class Program
         {
             ApplicationConfiguration.Initialize();
             CaptureTitle(capTitle, capTitle + ".png");
+            return 0;
+        }
+
+        if (whatX >= 0)
+        {
+            ApplicationConfiguration.Initialize();
+            if (pressAt) { Console.WriteLine($"press at {whatX},{whatY}"); Click(whatX, whatY); }
+            else Console.WriteLine($"AT {whatX},{whatY}: {DescribeWindowAt(whatX, whatY)}");
+            return 0;
+        }
+
+        if (dragDx != 0 || dragDy != 0)
+        {
+            ApplicationConfiguration.Initialize();
+            DragBottomBar("Shortcut Pad", dragDx, dragDy);
             return 0;
         }
 
@@ -415,6 +438,42 @@ internal static class Program
     /// reports the window rect/style before and after, to prove whether the
     /// maximize glyph is a real, working button.
     /// </summary>
+    /// <summary>
+    /// Drags the pad's bottom bar (its stand-in title bar) and reports the window
+    /// rect before and after, to prove the bar moves the window.
+    /// </summary>
+    private static void DragBottomBar(string title, int dx, int dy)
+    {
+        var hwnd = FindWindow(null, title);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine("WINDOW NOT FOUND " + title); return; }
+        GetWindowRect(hwnd, out var before);
+        GetClientRect(hwnd, out var cr);
+        ClientToScreen(hwnd, out var origin);
+
+        var x = origin.X + cr.Right / 2;
+        var y = origin.Y + cr.Bottom - 20;      // the status bar
+        Console.WriteLine($"bar point {x},{y}  before=({before.Left},{before.Top})-({before.Right},{before.Bottom})");
+
+        var size = Marshal.SizeOf<INPUT>();
+        SendInput(1, new[] { MouseInput(x, y, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+        Thread.Sleep(150);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTDOWN) }, size);
+        Thread.Sleep(150);
+        for (var i = 1; i <= 15; i++)
+        {
+            var px = x + dx * i / 15;
+            var py = y + dy * i / 15;
+            SendInput(1, new[] { MouseInput(px, py, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE) }, size);
+            Thread.Sleep(45);
+        }
+        Thread.Sleep(200);
+        SendInput(1, new[] { MouseInput(0, 0, MOUSEEVENTF_LEFTUP) }, size);
+        Thread.Sleep(600);
+
+        GetWindowRect(hwnd, out var after);
+        Console.WriteLine($"after=({after.Left},{after.Top})-({after.Right},{after.Bottom})  delta=({after.Left - before.Left},{after.Top - before.Top})");
+    }
+
     private static void ClickCaption(string title, int index, out string rect, out int style)
     {
         rect = "";

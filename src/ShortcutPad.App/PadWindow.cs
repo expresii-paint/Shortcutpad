@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace ShortcutPad;
 
@@ -50,6 +51,10 @@ public sealed class PadWindow : Window
         BuildUi();
         Title = "Shortcut Pad";
         Icon = AppIcon.TryLoad();
+        // No native caption: border-only decorations mean no minimize and no
+        // maximize button at all. The bottom bar doubles as the title bar (see
+        // BuildUi), and the thick frame stays, so the window is still resizable.
+        SystemDecorations = SystemDecorations.BorderOnly;
         ShowInTaskbar = true;
         Topmost = true;
         SizeToContent = SizeToContent.Manual;
@@ -110,9 +115,24 @@ public sealed class PadWindow : Window
         _menuButton.Click += (_, _) => OpenOptions();
 
         var statusRow = new DockPanel { Height = StatusHeight };
+        // A panel with no background is not hit-testable, so the bar would never
+        // see the press that starts a drag.
+        statusRow.Background = Brushes.Transparent;
         DockPanel.SetDock(_menuButton, Dock.Right);
         statusRow.Children.Add(_menuButton);
         statusRow.Children.Add(_status);
+        ToolTip.SetTip(statusRow, "Drag this bar to move the pad");
+
+        // With no native title bar, the bottom bar is the drag grip. A press on
+        // the menu button still just opens the menu. The move is done by hand
+        // (BeginMoveDrag is a no-op for a border-only window) and the pointer is
+        // captured so the drag keeps tracking outside the bar.
+        statusRow.PointerPressed += (_, e) =>
+        {
+            if ((e.Source as Visual)?.FindAncestorOfType<Button>() is not null) return;
+            if (!e.GetCurrentPoint(statusRow).Properties.IsLeftButtonPressed) return;
+            BeginMoveDrag(e);
+        };
 
         var panel = new DockPanel();
         DockPanel.SetDock(statusRow, Dock.Bottom);

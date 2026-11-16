@@ -58,16 +58,16 @@ within a second; the Options window shows the path it is using.
   set: **☰ Menu → Button size** offers Compact / Default / Large / XL plus width
   and height boxes (32–400 DIPs) that apply as you type. Auto flow divides the
   window by that target, so bigger buttons mean fewer, larger targets.
-- **Resizable**: drag any edge or corner. The window remembers its size. A
-  utility pad has no useful maximized state, so `IPadPlatform.SetMaximizeButton`
-  asks the platform to hide the maximize control (Avalonia has no cross-platform
-  `CanMaximize`): it drops `WS_MAXIMIZEBOX` on Windows (leaving `WS_THICKFRAME`),
-  hides the zoom button on macOS and removes the two maximize actions from
-  `_NET_WM_ALLOWED_ACTIONS` on X11. **Caveat, Windows 11**: the caption buttons
-  are drawn by the DWM there and ignore `WS_MAXIMIZEBOX`, so the style bit is
-  cleared but the glyph is still drawn and still works. Removing it properly
-  needs either a custom title bar or opting out of DWM non-client rendering
-  (which changes the caption's look).
+- **Resizable**: drag any edge or corner. The window remembers its size.
+- **No caption buttons**: the pad uses border-only decorations
+  (`SystemDecorations.BorderOnly`), so there is **no minimize and no maximize
+  button** — Windows 11 draws those in the DWM and ignores `WS_MAXIMIZEBOX`, so
+  hiding the box bit alone does not remove them. The thick frame stays, so the
+  window is still resizable, and the **bottom bar doubles as the title bar**:
+  drag it to move the pad (it carries a "Drag this bar to move the pad" tip).
+  A panel needs a background to be hit-testable, so the bar is transparent
+  rather than unpainted. The Options and editor windows keep their native
+  captions — they need a title and a close button.
 - **Auto flow** (`"autoFlow": true`, also a menu/tray toggle): the column and
   row counts are derived from the window's actual size, so the window stays
   freely resizable and the buttons keep the target size — whatever does not fit
